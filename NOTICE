@@ -1,0 +1,39 @@
+m-devbox
+Copyright 2026 vista-forge
+
+DUAL-LICENSED under EITHER the GNU Affero General Public License v3.0 (or, at
+your option, any later version) — see LICENSE — OR a commercial license from
+vista-forge (see the vista-forge `docs` repo, licensing/COMMERCIAL-LICENSE.md).
+
+m-devbox — a portable, container-delivered M development environment: one
+pinned image carrying YottaDB, the five native m-stdlib callouts, the `m` /
+`m-ydb` toolchain, and the M Standard Library.
+
+------------------------------------------------------------------------------
+Third-party components (assembled at build time, NOT vendored here)
+------------------------------------------------------------------------------
+
+This repository contains no third-party source. Everything below is fetched or
+copied into an ephemeral build context by scripts/stage-context.sh and lands in
+the built image; each keeps its own license.
+
+  YottaDB (r2.06, pinned)                 — AGPL-3.0-or-later (YottaDB LLC).
+      Installed at build time by the YottaDB project's own ydbinstall.sh,
+      pinned to an immutable commit and verified with sha256sum -c.
+
+  ydbinstall.sh                           — AGPL-3.0-or-later (YottaDB LLC),
+      fetched from gitlab.com/YottaDB/DB/YDB at a pinned commit.
+
+  Debian GNU/Linux (trixie-slim, pinned by digest) and the runtime packages
+      installed into it (libcurl, libssl, zlib, libzstd) — the licenses of
+      their respective Debian source packages.
+
+  m-stdlib (MSL routines + native callout sources) · m-cli (`m`) · m-ydb
+      — vista-forge, AGPL-3.0-or-later + commercial, same terms as this repo.
+
+The terms above govern the sources. How they COMBINE in a distributed image —
+notably vista-forge's dual-licensed code alongside AGPL YottaDB, and (from P2)
+public-domain VA FileMan — has NOT been assessed. That written disposition is
+a prerequisite of publication, not of building: prerequisites tracker PR-17,
+`../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md`.
+Nothing here is a legal conclusion about the combined work.

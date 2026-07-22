@@ -1,0 +1,9 @@
+{
+  "id": "tool:m-devbox",
+  "repo": "https://github.com/vista-forge/m-devbox",
+  "role": "Portable, container-delivered M development environment — YottaDB + native callouts + the m toolchain + MSL in one pinned image",
+  "language": ["dockerfile", "shell", "make"],
+  "layer": "m",
+  "license": "AGPL-3.0-or-later",
+  "verification_commands": ["make check", "make verify"]
+}

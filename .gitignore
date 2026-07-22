@@ -1,0 +1,18 @@
+# The docker build context is ephemeral and assembled by scripts/stage-context.sh
+# (binaries, fetched ydbinstall.sh, copies of m-stdlib/MSL). Every source in it is
+# single-sourced in its owning repo — vendoring a copy here would create the
+# second-implementation drift the staging script exists to avoid.
+.build-context/
+
+# Measurement scratch
+*.log
+
+# Claude Code
+.claude/settings.local.json
+
+# Direnv
+.envrc.local
+
+# OS
+.DS_Store
+Thumbs.db

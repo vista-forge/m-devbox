@@ -1,0 +1,91 @@
+# m-devbox — the portable, container-delivered M development environment.
+#
+# Two clocks, deliberately separated (org de-GitHub rules 1 and 5):
+#
+#   SYNC TIME (network allowed, deliberate, never automatic)
+#       make stage   assemble the build context (fetch the pinned ydbinstall.sh
+#                    once, rebuild `m`/`m-ydb` from the local checkouts)
+#       make build   stage + docker build from the pins
+#       make archive add the built image to the org's engine-image archive
+#
+#   GATE TIME (OFFLINE — never a pull, never apt, never a fetch)
+#       make check   the gate: pin drift + waterline + docs + shell syntax +
+#                    the full acceptance battery against the BUILT image
+#       make verify  the acceptance battery alone
+#       make load    restore the image from the archive (the recovery path —
+#                    the archive, not a rebuild, is how this image comes back)
+#
+# `make check` needs the image PRESENT but never fetches it: if it is missing,
+# `make load` restores it offline from ~/data/vista-forge/images. That is the
+# whole point of rule 5 — the archive is the recovery path.
+#
+# Engine access is ONLY through the driver stack (`m` / `m-ydb`). Raw
+# `docker exec` into an engine is forbidden org-wide and harness-denied; the
+# `docker run`s below launch the IMAGE UNDER TEST and then talk to it through
+# `m vista exec` / `m test`, which is the sanctioned seam.
+
+IMAGE   ?= m-devbox:0.1.0-local
+CTX     ?= $(CURDIR)/.build-context
+ARCHIVE ?= $(HOME)/data/vista-forge/images
+
+.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive load clean
+
+help: ## Show this help
+	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | \
+	  awk 'BEGIN{FS=":.*##"}{printf "  \033[36m%-12s\033[0m %s\n",$$1,$$2}'
+
+# ── sync time (network) ─────────────────────────────────────────────────────
+
+stage: ## SYNC-TIME: assemble the build context (pinned fetch + rebuild m/m-ydb at HEAD)
+	scripts/stage-context.sh "$(CTX)"
+
+build: stage ## SYNC-TIME: stage + docker build the image from the pins
+	docker build -t "$(IMAGE)" "$(CTX)"
+	@docker image inspect --format 'built: $(IMAGE) {{.Id}} ({{.Size}} bytes)' "$(IMAGE)"
+
+rebuild: stage ## SYNC-TIME: --no-cache rebuild (the PR-4 reproducibility check)
+	docker build --no-cache -t "$(IMAGE)" "$(CTX)"
+
+archive: ## SYNC-TIME-ish: fold the image into the org engine-image archive (change-detected)
+	bash ../.github/scripts/engine-image-archive.sh
+
+# ── gate time (offline) ─────────────────────────────────────────────────────
+
+# The gate. Engine-free gates first (they are fast and catch the boring
+# breakage), then the acceptance battery against the built image.
+check: pins arch-check docs-gate shell-gate verify ## OFFLINE gate: pins + waterline + docs + shell + acceptance battery
+
+pins: ## Offline: Dockerfile header pins == what the build/staging path uses
+	bash scripts/check-pins.sh
+
+arch-check: ## Offline: m/v waterline + repo.meta.json shape
+	@command -v m >/dev/null 2>&1 \
+	  && m arch check . \
+	  || { echo "arch-check: FAILED — 'm' is not on PATH; the waterline gate cannot run (fix: workspace/scripts/link-tools.sh)"; exit 1; }
+
+docs-gate: ## Offline: docs link + layout gate
+	python3 ../.github/scripts/link-check.py docs README.md CLAUDE.md
+	python3 ../.github/scripts/layout-check.py docs
+
+shell-gate: ## Offline: syntax-check every shipped shell script (bash -n floor, + shellcheck when present)
+	@set -e; for f in scripts/*.sh; do bash -n "$$f"; done; echo "bash -n: clean ($$(ls scripts/*.sh | wc -l) scripts)"
+	@sh -n scripts/entrypoint.sh && echo "sh -n: entrypoint.sh clean (it runs under /bin/sh, not bash)"
+	@if command -v shellcheck >/dev/null 2>&1; then \
+	  shellcheck -x scripts/*.sh && echo "shellcheck: clean"; \
+	else \
+	  echo "shellcheck: not installed — the bash -n floor above ran instead (apt install shellcheck to add it)"; \
+	fi
+
+verify: ## Offline: the acceptance battery against the built image (driver seam only)
+	scripts/verify-devbox.sh "$(IMAGE)"
+
+sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a gate — see README)
+	docker run --rm "$(IMAGE)" m test --engine ydb /opt/msl/tests
+
+load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
+	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \
+	 [ -f "$$f" ] || { echo "load: FAILED — no archived image at $$f (run: make build archive)"; exit 1; }; \
+	 echo "loading $$f"; zstd -dc "$$f" | docker load
+
+clean: ## Remove the staged build context
+	rm -rf "$(CTX)"
