@@ -68,6 +68,13 @@
 #       repo's committed .vsix), so an image built off a stale staged copy, or
 #       an m-vscode release the image has not re-baked, goes RED
 #       [[data-shipping-pin-is-a-stale-grammar]].
+#   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
+#       writes. The strictest form of the requirement: `--read-only`, so the
+#       ONLY writable surface is ephemeral tmpfs (the passwd-derived run-lock
+#       home + /tmp) and the $ydb_dir NAMED VOLUME (the DB) — no host bind mount,
+#       no writable rootfs. Library + example routines are object-precompiled
+#       (step 5), so nothing ZLINKs to the now-read-only source dirs. Run as the
+#       devbox uid (1000:0), the real devcontainer identity.
 set -uo pipefail
 
 IMG="${1:-m-devbox:0.1.0-local}"
@@ -336,6 +343,22 @@ else
   else
     fail "G15: baked .vsix sha ($BAKED_SHA) != m-vscode source sha ($SRC_SHA) — rebake needed (stale staged .vsix, or m-vscode released and the image was not re-baked)"
   fi
+fi
+
+echo "== G16: PR-12 — baked routines link + run under a READ-ONLY rootfs (no host writes) =="
+VOL=m-devbox-g16-verify
+docker volume rm "$VOL" >/dev/null 2>&1 || true
+# Only-writable = tmpfs (run-lock home /home/devbox + /tmp) + named vol /data.
+# --read-only makes the whole rootfs (incl. the baked source dirs) read-only.
+G16_OUT="$(timeout 240 docker run --rm --read-only --user 1000:0 \
+  -v "$VOL":/data --tmpfs /home/devbox --tmpfs /tmp \
+  -w /opt/examples/hello "$IMG" m test 2>&1)"; G16_RC=$?
+docker volume rm "$VOL" >/dev/null 2>&1 || true
+G16_SCORE="$(printf '%s' "$G16_OUT" | mtest_score)"; G16_P="${G16_SCORE%% *}"; G16_F="${G16_SCORE##* }"
+if [ "$G16_RC" -eq 0 ] && [ "$G16_F" = 0 ] && [ "$G16_P" != NOTOK ] && [ "$G16_P" != ERR ] && [ "$G16_P" -ge 5 ] 2>/dev/null; then
+  echo "  ✓ read-only rootfs (writable = tmpfs run-lock-home + /tmp + named-vol /data only) — bare \`m test\` green, $G16_P passed, 0 failed"
+else
+  fail "G16: bare \`m test\` under --read-only expected exit 0 / >=5 passed / 0 failed, got rc=$G16_RC passed=$G16_P failed=$G16_F"$'\n'"$(printf '%s' "$G16_OUT" | tail -25)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

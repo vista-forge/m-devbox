@@ -198,6 +198,26 @@ COPY msl-tests/ /opt/msl/tests/
 COPY fsl-tests/ /opt/fsl/tests/
 COPY examples/ /opt/examples/
 
+# ── P2 bake, step 5: PRECOMPILE the example .o + stamp all objects (PR-12) ────
+# For a hardened READ-ONLY rootfs, no baked routine may ZLINK at runtime (the
+# source dirs are read-only, so the .o write fails and the routine fails to link
+# — measured: the tests "made no assertions", NOT a ZLNOOBJECT the caller sees).
+# Two artifacts cause a runtime ZLINK:
+#   (1) the examples/hello routines have NO .o (unlike the libraries, already
+#       object-precompiled by `m lib install`). Compile them via the driver seam
+#       (image construction, same category as `m lib install`); the run doubles
+#       as a build-time green check, leaving HELLO.o / HELLOTST.o baked.
+#   (2) SAME-SECOND installs leave some library .o with mtime EQUAL to their .m
+#       (e.g. FSLDATE), and YDB re-links when `.m >= .o` — so under --read-only
+#       that .o write fails. `touch` every baked .o so it is unambiguously newer
+#       than its .m; the objects are current (compiled from that .m), the equal
+#       mtime is only a 1-second filesystem-granularity artifact. (Latent in
+#       `m lib install`; the deterministic fix belongs in the image bake here.)
+# verify-devbox.sh G16 proves the whole thing under `--read-only`. (A user's OWN
+# routines in /work still ZLINK at runtime and want a writable object dir — PR-13.)
+RUN m test --engine ydb /opt/examples/hello/tests >/dev/null; \
+    find /opt/lib/r /opt/examples -name '*.o' -exec touch {} +
+
 # ── PR-6: the arbitrary-uid layer ───────────────────────────────────────────
 # MEASURED 2026-07-22 on the unfixed candidate: `docker run --user 1000:1000`
 # refused EVERY engine verb with
