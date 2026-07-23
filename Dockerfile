@@ -134,6 +134,9 @@ ENV ydb_gbldir=/data/m.gld
 # (A user's OWN, non-baked project needs its dir added to $ydb_routines too —
 # the devcontainer/workspace concern, P3 / PR-13.) The util .so is read-only.
 ENV ydb_routines="/opt/lib/r /opt/msl/tests /opt/fsl/tests /opt/examples/hello/src /opt/examples/hello/tests /opt/yottadb/current/libyottadbutil.so"
+# NOTE: the engine SELECTOR `M_ENGINE=ydb` (PR-11) is baked LATE, just before
+# ENTRYPOINT — it is a runtime-only concern (build steps pass --engine ydb
+# explicitly) and placing it after the expensive bake layers keeps them cached.
 
 COPY m m-ydb /usr/local/bin/
 ENV PATH=/usr/local/bin:$PATH
@@ -229,6 +232,18 @@ RUN set -eu; \
       chgrp -R 0 "$d"; chmod -R g=u "$d"; \
     done
 COPY entrypoint.sh /usr/local/bin/devbox-entrypoint
+
+# Engine SELECTOR baked as image ENV (PR-11; engine-selection-on-attach ADR).
+# The ydb_* ENVs above are engine INTERIORS; M_ENGINE is the SELECTOR that tells
+# `m` WHICH engine to run — distinct concepts (ADR §2), and a selector is legal
+# host/image ENV under the engine-instance-path ADR. Without it a bare `m test`
+# (no --engine flag) resolves the bare default → !explicit → exit 4
+# ENGINE_UNRESOLVED, so MD-D2's "green within 60 s of attach" is unreachable.
+# Transport stays LOCAL by default (no --docker), correct for the devbox.
+# Baked LATE (runtime-only; build steps pass --engine ydb) so the expensive bake
+# layers stay cached. verify-devbox.sh G13 red-gates it: bare `m test` must exit
+# 0 with this set and exit 4 ENGINE_UNRESOLVED with it unset, so it cannot vanish.
+ENV M_ENGINE=ydb
 
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]

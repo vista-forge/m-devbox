@@ -45,6 +45,15 @@
 #   G12 examples/hello — the MD-D2 acceptance seed: `m test` on the starter
 #       project is green, and it calls BOTH an STD* and an FSL* routine, so a
 #       green run is the falsifiable form of "the environment is real".
+#   ── P3 (attach) ────────────────────────────────────────────────────────────
+#   G13 PR-11 — the engine SELECTOR is baked and load-bearing. Every gate above
+#       passes `--engine ydb`, which sidesteps engine selection; a real
+#       devcontainer user runs a BARE `m test`. Positive: with M_ENGINE=ydb
+#       baked, a bare `m test` (no --engine, cwd = the project) is green —
+#       engine-selection-on-attach ADR §5. Negative control: with M_ENGINE
+#       UNSET the tool REFUSES (exit 4 ENGINE_UNRESOLVED), never guesses — so
+#       the selector cannot silently vanish and leave the 60 s-to-green claim
+#       resting on an ambient default [[degrade-loud-or-refuse]].
 set -uo pipefail
 
 IMG="${1:-m-devbox:0.1.0-local}"
@@ -232,6 +241,26 @@ suite_green "f-stdlib suite" /opt/fsl/tests 1
 
 echo "== G12: examples/hello — the MD-D2 acceptance seed (STD* + FSL*, green) =="
 suite_green "examples/hello" /opt/examples/hello/tests 5
+
+echo "== G13: PR-11 — a bare \`m test\` selects the baked engine (no --engine) =="
+# The truest attach simulation: cwd = the project, no flags, no exported vars
+# beyond image ENV. Transport stays LOCAL (no --docker), correct for the devbox.
+BARE_OUT="$(timeout 240 docker run --rm -w /opt/examples/hello "$IMG" m test 2>&1)"; BARE_RC=$?
+BARE_SCORE="$(printf '%s' "$BARE_OUT" | mtest_score)"
+BARE_PASS="${BARE_SCORE%% *}"; BARE_FAIL="${BARE_SCORE##* }"
+if [ "$BARE_RC" -eq 0 ] && [ "$BARE_FAIL" = 0 ] && [ "$BARE_PASS" != NOTOK ] && [ "$BARE_PASS" != ERR ] && [ "$BARE_PASS" -ge 5 ] 2>/dev/null; then
+  echo "  ✓ bare \`m test\` (no --engine) green — $BARE_PASS passed, 0 failed; baked M_ENGINE=ydb resolved the engine"
+else
+  fail "G13 positive: bare \`m test\` expected exit 0 / >=5 passed / 0 failed, got rc=$BARE_RC passed=$BARE_PASS failed=$BARE_FAIL"$'\n'"$(printf '%s' "$BARE_OUT" | tail -20)"
+fi
+# Negative control: unset the baked selector → the tool must REFUSE, not default
+# to ydb. `-e M_ENGINE=` overrides the image ENV with empty (== unset to Resolve).
+NEG_OUT="$(timeout 120 docker run --rm -e M_ENGINE= -w /opt/examples/hello "$IMG" m test 2>&1)"; NEG_RC=$?
+if [ "$NEG_RC" -eq 4 ] && grep -q ENGINE_UNRESOLVED <<<"$NEG_OUT"; then
+  echo "  ✓ negative control: M_ENGINE unset → exit 4 ENGINE_UNRESOLVED (selector is load-bearing, not an ambient default)"
+else
+  fail "G13 negative: M_ENGINE unset must exit 4 with ENGINE_UNRESOLVED, got rc=$NEG_RC"$'\n'"$(printf '%s' "$NEG_OUT" | tail -20)"
+fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc
