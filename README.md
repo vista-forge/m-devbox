@@ -1,14 +1,17 @@
 # m-devbox
 
 **A portable M development environment in one container image.** YottaDB, the
-five native `m-stdlib` callouts, the `m` / `m-ydb` toolchain and the M Standard
-Library — built entirely from pins, no compiler and no Go toolchain required on
-the developer's machine.
+five native `m-stdlib` callouts, the `m` / `m-ydb` toolchain, the **M Standard
+Library (MSL) and the FileMan Standard Library (FSL) installed durably via
+`m lib`**, **standalone VA FileMan 22.2**, and an `examples/hello` starter —
+built entirely from pins, no compiler and no Go toolchain required on the
+developer's machine.
 
-> **Status: P1.** The image below is real, built, verified and archived. FileMan
-> + FSL (P2), the devcontainer and baked `.vsix` (P3), the one-command launchers
-> (P4), multi-arch (P5) and publication (P6) are not built yet. The live status
-> of every prerequisite is the
+> **Status: P2 built.** The image below is real, built, verified and archived
+> (265 MB; MSL + FSL + FileMan resident, `examples/hello` green). The
+> devcontainer and baked `.vsix` (P3), the one-command launchers (P4),
+> multi-arch (P5) and publication (P6) are not built yet. The live status of
+> every prerequisite is the
 > [prerequisites tracker](../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md)
 > — not this README, and not the proposal.
 
@@ -78,8 +81,9 @@ Measured sizes and the exact pins are in the
 Dockerfile              the image, pins in its header
 scripts/stage-context.sh    assemble the ephemeral build context (sync-time)
 scripts/entrypoint.sh       the arbitrary-uid passwd guarantee
-scripts/verify-devbox.sh    the acceptance battery G1–G8 (driver seam only)
+scripts/verify-devbox.sh    the acceptance battery G1–G12 (driver seam only)
 scripts/check-pins.sh       offline drift gate: header pins == build pins
+examples/hello/             the baked starter project (MD-D2)
 docs/design/image-dossier.md  measured contents, sizes, and the sweep baseline
 ```
 

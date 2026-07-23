@@ -4,19 +4,31 @@
 #   stage-context.sh <context-dir>
 #
 # ⚠️ ALWAYS RESTAGE BEFORE BUILDING. This rebuilds `m` / `m-ydb` from the local
-# checkouts and re-copies m-stdlib + MSL at HEAD. A `docker build` off a stale
-# context silently produces a DIFFERENT program than the one under test —
+# checkouts and re-copies every source unit at HEAD. A `docker build` off a
+# stale context silently produces a DIFFERENT program than the one under test —
 # [[tests-and-product-built-differently]]. `make build` depends on `stage` for
 # exactly this reason; do not run `docker build` by hand against an old context.
 #
 # The context is ephemeral (a scratch dir), never committed — sources are
 # single-sourced in their owning repos, same rule as the m-test-engine salvage
 # pattern. Binaries are rebuilt from the local checkouts so the image always
-# carries the toolchain at org HEAD.
+# carries the toolchain at org HEAD (this is how the P2 bake picks up m-cli
+# `m lib` and the m-ydb `sync rm` .o fix — PR-10 rider 2).
 #
-# Network: ydbinstall.sh is fetched ONCE, from its PINNED commit URL, and
-# checksum-verified — a sync-time moment, not a gate-time one. A cached copy
-# that passes the checksum is reused, so re-staging is offline.
+# What the P2 image bakes, and therefore what this stages:
+#   - MSL   the m-stdlib install UNIT (src/*.m + dist/*-manifest.json) — no
+#           longer a plain COPY of source; the image installs it durably with
+#           `m lib install` so list/verify/uninstall work (PR-8 / §5.1(c)).
+#   - FSL   the f-stdlib install unit, same shape.
+#   - FileMan  the pinned, checksum-verified vista-fileman source + its build
+#           scripts, installed inside `docker build` over the local transport
+#           (§5.2(a) / PR-10).
+#   - examples/hello  the starter project (MD-D2), copied from this repo.
+#
+# Network: ydbinstall.sh and the FileMan source are fetched ONCE from their
+# PINNED locations and checksum-verified — sync-time moments, not gate-time
+# ones. Cached copies that pass their checksums are reused, so re-staging is
+# offline.
 set -euo pipefail
 
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,18 +57,56 @@ fi
 ( cd "$FORGE/m-cli" && go build -o "$CTX/m" . )
 ( cd "$FORGE/m-ydb" && go build -o "$CTX/m-ydb" . )
 
-# ── callout source tree (registry + descriptors + C) ────────────────────────
+# ── m-stdlib: the MSL unit — callout sources (builder stage) AND the library
+#    install unit (final-stage `m lib install`) live under one staged dir ─────
+# Builder stage consumes dist/callout-symbols.json + tools/*.xc + src/callouts/*.c;
+# the final-stage `m lib install /build/m-stdlib/src` consumes src/*.m plus the
+# single dist/*-manifest.json (LoadManifest discovers it at ../dist). The
+# callout-symbols.json beside it flips the manifest's HasCallouts bit, so the
+# install correctly WARNS that callouts are not m-lib's job (they were built in
+# the builder stage) rather than pretending to install them.
 rm -rf "$CTX/m-stdlib"
 mkdir -p "$CTX/m-stdlib/dist" "$CTX/m-stdlib/tools" "$CTX/m-stdlib/src/callouts"
 cp "$FORGE/m-stdlib/dist/callout-symbols.json" "$CTX/m-stdlib/dist/"
+cp "$FORGE/m-stdlib/dist/stdlib-manifest.json" "$CTX/m-stdlib/dist/"
 cp "$FORGE/m-stdlib/tools/"*.xc               "$CTX/m-stdlib/tools/"
 cp "$FORGE/m-stdlib/src/callouts/"*.c         "$CTX/m-stdlib/src/callouts/"
+cp "$FORGE/m-stdlib/src/"*.m                   "$CTX/m-stdlib/src/"
 
-# ── MSL source + tests (the verification rig's routines) ────────────────────
-rm -rf "$CTX/msl-src" "$CTX/msl-tests"
-mkdir -p "$CTX/msl-src" "$CTX/msl-tests"
-cp "$FORGE/m-stdlib/src/"*.m   "$CTX/msl-src/"
+# ── f-stdlib: the FSL install unit (src/*.m + dist/fsl-manifest.json) ────────
+rm -rf "$CTX/f-stdlib"
+mkdir -p "$CTX/f-stdlib/dist" "$CTX/f-stdlib/src"
+cp "$FORGE/f-stdlib/dist/fsl-manifest.json" "$CTX/f-stdlib/dist/"
+cp "$FORGE/f-stdlib/src/"*.m                "$CTX/f-stdlib/src/"
+
+# ── library test suites (verification rig only — not on the routine path) ────
+# `m test <path>` stages a suite itself, so these are plain file dirs the
+# verify battery points at; they do not belong in $ydb_routines.
+rm -rf "$CTX/msl-tests" "$CTX/fsl-tests"
+mkdir -p "$CTX/msl-tests" "$CTX/fsl-tests"
 cp "$FORGE/m-stdlib/tests/"*.m "$CTX/msl-tests/"
+cp "$FORGE/f-stdlib/tests/"*.m "$CTX/fsl-tests/"
+
+# ── FileMan: pinned source + build scripts (installed in-build, §5.2(a)) ─────
+# The vista-fileman source is pinned to an immutable commit and verified
+# byte-for-byte against seed/sources.sha256. Fetch once (sync-time) if absent,
+# then always re-verify offline before copying — a stale or drifted tree must
+# never reach the image [[data-shipping-pin-is-a-stale-grammar]].
+VF="$FORGE/vista-fileman"
+VF_SRC="$("$VF/scripts/fetch-source.sh" --path)"
+if [ ! -d "$VF_SRC" ]; then
+  echo "stage: FileMan source absent — fetching (sync-time, pinned commit)"
+  "$VF/scripts/fetch-source.sh"
+fi
+"$VF/scripts/fetch-source.sh" --verify
+rm -rf "$CTX/fileman"
+mkdir -p "$CTX/fileman"
+cp -r "$VF/scripts" "$CTX/fileman/scripts"
+cp -r "$VF/src"     "$CTX/fileman/src"
+
+# ── examples/hello (MD-D2 starter project — copied from this repo) ───────────
+rm -rf "$CTX/examples"
+cp -r "$REPO/examples" "$CTX/examples"
 
 # ── provenance: WHICH HEADs this context was cut from ───────────────────────
 # The staged tree is ephemeral, so without this a measurement can name an image
@@ -64,12 +114,14 @@ cp "$FORGE/m-stdlib/tests/"*.m "$CTX/msl-tests/"
 # into the image) — the build's own record, read by hand when a result surprises.
 {
   printf 'staged-from:\n'
-  for r in m-cli m-ydb m-stdlib m-devbox; do
+  for r in m-cli m-ydb m-stdlib f-stdlib vista-fileman m-devbox; do
     d="$FORGE/$r"; [ -d "$d/.git" ] || continue
-    printf '  %-10s %s%s\n' "$r" \
+    printf '  %-14s %s%s\n' "$r" \
       "$(git -C "$d" rev-parse --short HEAD 2>/dev/null || echo '?')" \
       "$(git -C "$d" diff --quiet 2>/dev/null || echo ' (DIRTY)')"
   done
+  printf '  %-14s %s (FileMan source pin)\n' "fileman-src" \
+    "$(grep -E '^commit=' "$VF/scripts/seed/source.pin" | cut -d= -f2 | cut -c1-12)"
 } | tee "$CTX/context.provenance"
 
 echo "staged: $CTX"

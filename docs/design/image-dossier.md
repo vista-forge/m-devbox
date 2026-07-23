@@ -16,19 +16,42 @@ file is the one that was measured — re-measure, then correct the others.
 **Do not update a row by editing the number.** Re-run the command, paste what
 it printed, and move the date.
 
-## The image
+## The image (P2 — the bake)
 
 | | |
 |---|---|
 | Tag | `m-devbox:0.1.0-local` |
-| Image ID | `sha256:85a8df89fccb0e18412c83fd9788681e91e8091f62767261e7495ea484e2d5e1` |
-| Built | 2026-07-22, `make build` |
-| Disk usage | **197 MB** (`docker image ls` DISK USAGE) |
-| Content size | 52 MB (`docker image inspect .Size` — the compressed content, not what it occupies) |
+| Image ID | `sha256:521d7f9cd200e1026fd87beb9ac76bf22ba8337e05bc85f7fae6a2f259ec273e` |
+| Built | 2026-07-22, `make build` (P2 bake) |
+| Disk usage | **265 MB** (`docker image ls` — up from P1's 197 MB) |
+| Archive | 59 MB compressed (`m-devbox_0.1.0-local.tar.zst`, 7/7 engine-image archive) |
 
-Two sizes, two bases — quoting one without the other is how the three
-conflicting totals in PR-0 happened. **197 MB is the size a developer's disk
-sees**; 52 MB is roughly what a pull would move.
+**What P2 added over the 197 MB P1 base (~68 MB):** standalone VA FileMan 22.2
++ MSL + FSL routines and their objects in `/opt/lib/r` (**20 MB**, 906 `.m`),
+the FileMan-populated VistA-sized database in `/data` (**5.6 MB**), plus the
+`examples/hello` starter. The `^mlib` install ledger lives in that DB, which is
+what makes `m lib list`/`verify`/`uninstall` work on the running image.
+
+### P2 acceptance (measured, all through the driver seam)
+
+| Gate | Result |
+|---|---|
+| G7 MSL suite (root / arbitrary-uid / baked user) | 63 / 0 each |
+| G9 `m lib verify` m-stdlib · f-stdlib | ok · ok (ledger == engine) |
+| G10 FileMan resident (`$$GET1^DIQ`) | `FILE` |
+| G11 f-stdlib suite (FSL on FileMan) | 205 / 0 |
+| G12 `examples/hello` (STD* + FSL*) | 5 / 0 |
+
+Durable installs: `m lib install` compiled 40 MSL + 7 FSL routines into
+`/opt/lib/r` under the intent-then-commit ledger (PR-8); FileMan installed via
+the vista-fileman local-transport port as a `docker build` RUN step
+(§5.2(a) / PR-10). Two toolchain fixes the real-library bake forced — STDNET
+ZLINK on YDB (m-stdlib `448f6d0`, PR-8b), `%`-routine source enumeration
+(m-ydb `6d89a0c`, PR-21) — plus the pre-flight compile gate (m-cli `25aee9c`,
+PR-22) and the arch-check `.build-context` skip (m-cli `a9a4748`).
+
+**Two sizes, two bases** (the P1 rule, still binding): 265 MB is the size a
+developer's disk sees; the 59 MB archive is roughly what a pull would move.
 
 ### Staged from (build provenance)
 
@@ -80,7 +103,7 @@ version-drift mutation, 2026-07-22.
 ## The full-sweep baseline — a measurement, not a gate
 
 ```
-$ make sweep                                    # 2026-07-22, image 85a8df89fccb
+$ make sweep                                    # 2026-07-22, image 521d7f9cd200 (P2)
 42 suites · 2831 passed · 11 failed             (exit 3)
 RED: STDS3MINIOTST  0 passed  11 failed
 ```

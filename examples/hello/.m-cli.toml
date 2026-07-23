@@ -1,0 +1,16 @@
+# m-cli configuration for the examples/hello starter project.
+#
+# Modern (pythonic-lower) M — the style a new devbox project should follow,
+# checked by `m lint`. The formatter has no lowercasing preset yet, so `fmt`
+# is pinned to identity (m-cli T0-3 made unknown presets a hard error); switch
+# when a modern preset ships. Mirrors m-stdlib/.m-cli.toml.
+
+[lint]
+rules = "modern"
+target_engine = "any"
+
+[fmt]
+rules = "identity"
+
+[lsp]
+"hover.format" = "markdown"

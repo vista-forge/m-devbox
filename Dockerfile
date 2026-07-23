@@ -1,7 +1,9 @@
-# m-devbox — the P1 base image: YottaDB + the five native callouts + the `m`
-# toolchain + MSL, built entirely from pins.
+# m-devbox — the portable M development environment image: YottaDB + the five
+# native callouts + the `m`/`m-ydb` toolchain, and (P2) MSL + FSL installed
+# durably via `m lib` plus standalone FileMan 22.2 and an examples/hello
+# starter — built entirely from pins.
 #
-# THIS IS THE LIVE COPY. The byte-identical ancestor under the `docs` repo
+# THIS IS THE LIVE COPY. The byte-identical P1 ancestor under the `docs` repo
 # (docs/proposals/m-devbox/callout-build-path/) is FROZEN as the PR-2…PR-5
 # closure evidence and is not maintained — edit here, never there.
 #
@@ -35,10 +37,16 @@
 #   ydbinstall gitlab.com/YottaDB/DB/YDB @ ab1d352b1a73b8945055337cd4b2b9da07ef73c5, sr_unix/ydbinstall.sh
 #              sha256 ff106cae18a69702eec8a196310116958a5d6e1e36b47ac87fb4a4fa6192f05c
 #   YottaDB    r2.06 (explicit positional pin — never "latest")
+#   FileMan    WorldVistA/VistA-VEHU-M @ 62622e63fc7dffad27fc79f107fd7689c2ac4eff
+#              (Packages/VA FileMan/Routines) — the pin lives in
+#              vista-fileman/scripts/seed/source.pin and every routine byte is
+#              verified against seed/sources.sha256 at STAGE time (offline),
+#              which is that source's pin-integrity gate.
 #
 # Build context is assembled by stage-context.sh (never committed): the pinned
-# ydbinstall.sh, the `m` + `m-ydb` binaries, m-stdlib's callout sources +
-# registry, and MSL src/tests for the verification rig.
+# ydbinstall.sh, the `m` + `m-ydb` binaries at HEAD, m-stdlib's callout sources
+# + registry, the MSL and FSL install units (src/*.m + dist manifest), the
+# pinned FileMan source + build scripts, MSL/FSL test suites, and examples/.
 
 # ── base: minimal YottaDB (MD-D3 shape, now pinned) ─────────────────────────
 FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS base
@@ -115,21 +123,77 @@ ENV ydb_xc_stdcompress=/opt/stdlib/xc/std_compress.xc \
 # MSL is byte-oriented: engine runs in M (byte) mode.
 ENV ydb_chset=M
 ENV ydb_gbldir=/data/m.gld
-# Routine dirs must be WRITABLE (PR-12: YDB writes .o beside .m); the
-# arbitrary-uid layer below makes them writable for a non-root uid too.
-ENV ydb_routines="/opt/msl/tests /opt/msl/r /opt/yottadb/current/libyottadbutil.so"
+# $ydb_routines layout. /opt/lib/r is FIRST — the writable primary that
+# `m lib install` and the FileMan build compile into (dirs[0]) and that YDB
+# writes .o beside .m in (PR-12; the arbitrary-uid layer keeps it writable for
+# a non-root uid). The library + example TEST/SRC dirs MUST also be on the path:
+# on the LOCAL transport `m test` does NOT stage a suite (the managedStaging cap
+# is docker-only — m-cli staging.go), so a suite is only runnable when its dir
+# is on $ydb_routines. The baked acceptance suites (MSL/FSL) and the
+# examples/hello starter are therefore listed here so `m test` resolves them.
+# (A user's OWN, non-baked project needs its dir added to $ydb_routines too —
+# the devcontainer/workspace concern, P3 / PR-13.) The util .so is read-only.
+ENV ydb_routines="/opt/lib/r /opt/msl/tests /opt/fsl/tests /opt/examples/hello/src /opt/examples/hello/tests /opt/yottadb/current/libyottadbutil.so"
 
 COPY m m-ydb /usr/local/bin/
 ENV PATH=/usr/local/bin:$PATH
-COPY msl-src/ /opt/msl/r/
-COPY msl-tests/ /opt/msl/tests/
 
-# Image-construction provisioning (Q1 ruling — see header): create the empty
-# database the engine env points at. Not dev/test engine access; verification
-# of the BUILT image goes through the driver seam (verify-devbox.sh).
-RUN set -e; mkdir -p /data/g /work; \
-    printf 'change -segment DEFAULT -file=/data/g/m.dat\nexit\n' | mumps -run GDE >/dev/null; \
+# ── P2 bake, step 1: the empty database, VistA-SIZED ─────────────────────────
+# Image-construction provisioning (Q1 ruling — see header): create the DB the
+# engine env points at. This is NOT dev/test engine access — verification of
+# the BUILT image goes through the driver seam (verify-devbox.sh). It MUST come
+# before any global write (it is the only DB-create in the image), and it MUST
+# use VistA-standard region sizes: the GDE-default key/record sizes overflow on
+# FileMan's own DD subscripts (measured 2026-07-22: DINIT died GVSUBOFLOW on
+# ^DIST(.404,…); PR-10 rider 1). This step is the durable home the vista-fileman
+# port's stopgap re-provision pointed at.
+# Every dir named in the ydb_routines ENV must EXIST before any engine
+# invocation (GDE/mupip parse $ydb_routines and reject a missing source dir
+# with %YDB-E-FILEPARSE), so create them all here — the later COPYs populate
+# them. An existing empty source dir is valid.
+RUN set -e; mkdir -p /opt/lib/r /opt/msl/tests /opt/fsl/tests \
+      /opt/examples/hello/src /opt/examples/hello/tests /data/g /work; \
+    printf 'change -segment DEFAULT -file=/data/g/m.dat\nchange -region DEFAULT -key_size=1019 -record_size=4080\nexit\n' \
+      | mumps -run GDE >/dev/null; \
     mupip create
+
+# ── P2 bake, step 2: MSL + FSL installed DURABLY via `m lib install` ─────────
+# This replaces P1's plain `COPY msl-src → /opt/msl/r`. The intent-then-commit
+# ^mlib ledger (PR-8 / §5.1(c)) is what makes `m lib list/verify/uninstall`
+# work on the running image. Engine access is the driver seam (`m lib` → the
+# m-driver-sdk Client), not a raw exec. MSL ships native callouts (already
+# built into /opt/stdlib in the builder stage) so the install WARNS about them
+# rather than installing them — expected, not an error. Source trees are
+# discarded in the same layer once their routines are compiled into /opt/lib/r.
+COPY m-stdlib /build/m-stdlib
+COPY f-stdlib /build/f-stdlib
+RUN set -e; \
+    m lib install --engine ydb --name m-stdlib /build/m-stdlib/src; \
+    m lib install --engine ydb --name f-stdlib /build/f-stdlib/src; \
+    m lib list --engine ydb; \
+    rm -rf /build
+
+# ── P2 bake, step 3: standalone FileMan 22.2, installed inside `docker build` ─
+# The vista-fileman build.sh local transport as a RUN step (§5.2(a) / PR-10):
+# the engine is the image's own ambient YottaDB, driver-native, run-lock
+# bracketed. build.sh under local provisions and destroys NOTHING — a failed
+# RUN layer is discarded by the builder (failure-semantics gate). Source is
+# discarded after the routines are compiled into /opt/lib/r.
+COPY fileman/scripts /opt/vista-fileman/scripts
+COPY fileman/src /opt/vista-fileman/src
+RUN set -e; \
+    env VF_TRANSPORT=local \
+        FM_SRC='/opt/vista-fileman/src/Packages/VA FileMan/Routines' \
+        /opt/vista-fileman/scripts/build.sh build; \
+    rm -rf /opt/vista-fileman
+
+# ── P2 bake, step 4: test suites + the examples/hello starter (MD-D2) ────────
+# Test suites are plain file dirs the verify battery points at (`m test` stages
+# a suite itself, so they are not on $ydb_routines). examples/hello is the
+# stranger's starting project — a green `m test` on it exercises STD* and FSL*.
+COPY msl-tests/ /opt/msl/tests/
+COPY fsl-tests/ /opt/fsl/tests/
+COPY examples/ /opt/examples/
 
 # ── PR-6: the arbitrary-uid layer ───────────────────────────────────────────
 # MEASURED 2026-07-22 on the unfixed candidate: `docker run --user 1000:1000`
@@ -154,11 +218,14 @@ RUN set -e; mkdir -p /data/g /work; \
 # loudly (exit 78, naming the fix) rather than letting it resurface three layers
 # down as RUNLOCK_FAILED — [[degrade-loud-or-refuse]]. verify-devbox.sh G8 pins
 # that refusal so it cannot rot into a silent pass.
+# NOTE: this runs AFTER every install so the routines, objects and ledger the
+# installs wrote (owned by root) become group-0-writable too. /opt/lib is the
+# live routine+object dir and the `m test` staging parent, so it MUST be here.
 RUN set -eu; \
     useradd -m -u 1000 -g 0 -s /bin/bash devbox; \
     getent passwd devbox >/dev/null; \
     chgrp 0 /etc/passwd; chmod g=u /etc/passwd; \
-    for d in /data /opt/msl /opt/stdlib /work /home/devbox; do \
+    for d in /data /opt/lib /opt/msl /opt/fsl /opt/examples /opt/stdlib /work /home/devbox; do \
       chgrp -R 0 "$d"; chmod -R g=u "$d"; \
     done
 COPY entrypoint.sh /usr/local/bin/devbox-entrypoint

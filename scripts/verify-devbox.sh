@@ -32,6 +32,19 @@
 #       opaque RUNLOCK_FAILED three layers down. Gated, not informational: a
 #       refusal that rots into a silent pass is the failure mode
 #       [[degrade-loud-or-refuse]] names.
+#   ── P2 (the bake) ──────────────────────────────────────────────────────────
+#   G9  DURABLE library install — `m lib list` records m-stdlib AND f-stdlib,
+#       and `m lib verify` re-derives each from the ENGINE and matches the
+#       ledger. This is what §5.1(c) bought over a plain COPY: the install is
+#       inspectable and reversible on the running image.
+#   G10 FileMan RESIDENT — a FileMan API call through the seam ($$GET1^DIQ)
+#       returns the file name, proving the §5.2(a) build-time install landed.
+#   G11 FSL resident + working ON FileMan — the full f-stdlib suite runs green
+#       in the image (the FSL suites exercise FileMan, so this is also a
+#       second, behavioural FileMan proof).
+#   G12 examples/hello — the MD-D2 acceptance seed: `m test` on the starter
+#       project is green, and it calls BOTH an STD* and an FSL* routine, so a
+#       green run is the falsifiable form of "the environment is real".
 set -uo pipefail
 
 IMG="${1:-m-devbox:0.1.0-local}"
@@ -161,6 +174,64 @@ if [ $g8 -eq 78 ] && grep -q 'no /etc/passwd entry' <<<"$OUT"; then
 else
   fail "expected a loud refusal (exit 78 + 'no /etc/passwd entry'), got rc=$g8:"$'\n'"$(tail -10 <<<"$OUT")"
 fi
+
+# ── P2 gates ─────────────────────────────────────────────────────────────────
+
+# Parse an `m test` envelope on stdin → "PASSED FAILED", or "NOTOK …"/"ERR ERR"
+# when the envelope is red or unparseable (both fail every comparison below).
+mtest_score() {
+  python3 -c '
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    print("ERR ERR"); raise SystemExit
+g = d.get("data") or {}
+ok = d.get("ok") is True
+print(g.get("passed", "ERR") if ok else "NOTOK", g.get("failed", "ERR"))'
+}
+
+# Run `m test` on a suite/dir in the image and assert failed=0 with passed>=min.
+suite_green() { # $1 = label, $2 = path, $3 = min passed
+  local label="$1" path="$2" minp="$3" out score passed failed
+  out="$(timeout 240 docker run --rm "$IMG" m test --engine ydb "$path" 2>&1)"
+  score="$(printf '%s' "$out" | mtest_score)"
+  passed="${score%% *}"; failed="${score##* }"
+  if [ "$failed" = 0 ] && [ "$passed" != NOTOK ] && [ "$passed" != ERR ] && [ "$passed" -ge "$minp" ] 2>/dev/null; then
+    echo "  ✓ $label: m test green — $passed passed, 0 failed"
+  else
+    fail "$label: expected >=$minp passed / 0 failed, got passed=$passed failed=$failed"$'\n'"$(printf '%s' "$out" | tail -20)"
+  fi
+}
+
+echo "== G9: durable library install — m lib list + verify (ledger matches engine) =="
+LIST="$(run "$IMG" m lib list --engine ydb 2>&1)"
+for lib in m-stdlib f-stdlib; do
+  grep -q "$lib" <<<"$LIST" || fail "G9: '$lib' absent from \`m lib list\`:"$'\n'"$LIST"
+done
+for lib in m-stdlib f-stdlib; do
+  OUT="$(run "$IMG" m lib verify --engine ydb "$lib" 2>&1)"
+  if grep -qE '"ok": *true' <<<"$OUT"; then
+    echo "  ✓ $lib: verify ok — engine matches the ledger"
+  else
+    fail "G9: \`m lib verify $lib\` did not report ok:true (ledger drift?):"$'\n'"$(tail -8 <<<"$OUT")"
+  fi
+done
+
+echo "== G10: FileMan resident — a FileMan API call through the seam =="
+OUT="$(run "$IMG" m vista exec --engine ydb --transport local \
+        'set DUZ=1,DUZ(0)="@",U="^" write "GET1=",$$GET1^DIQ(1,"1,",.01)' 2>&1)"
+if grep -q 'GET1=FILE' <<<"$OUT"; then
+  echo "  ✓ \$\$GET1^DIQ(1,\"1,\",.01) = FILE — FileMan 22.2 is installed and answering"
+else
+  fail "G10: FileMan API call did not return FILE:"$'\n'"$(tail -8 <<<"$OUT")"
+fi
+
+echo "== G11: FSL resident + working on FileMan — the full f-stdlib suite =="
+suite_green "f-stdlib suite" /opt/fsl/tests 1
+
+echo "== G12: examples/hello — the MD-D2 acceptance seed (STD* + FSL*, green) =="
+suite_green "examples/hello" /opt/examples/hello/tests 5
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc

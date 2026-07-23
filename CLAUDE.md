@@ -84,7 +84,7 @@ not an image tweak.
 | `arch-check` | `m arch check` — waterline + `repo.meta.json` shape |
 | `docs-gate` | link + layout |
 | `shell-gate` | `bash -n` / `sh -n` floor on every shipped script, plus shellcheck when installed |
-| `verify` | the acceptance battery G1–G8 against the built image, all through the driver seam |
+| `verify` | the acceptance battery G1–G12 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2) |
 
 `make sweep` (the full MSL suite run) is a **measurement, not a gate** — 11
 suites in `STDS3MINIOTST` fail without a MinIO service, so it can never be
