@@ -108,13 +108,29 @@ cp -r "$VF/src"     "$CTX/fileman/src"
 rm -rf "$CTX/examples"
 cp -r "$REPO/examples" "$CTX/examples"
 
+# ── m-vscode: the baked .vsix (MD-D5) — installed from file at attach ─────────
+# Single-sourced from the m-vscode repo (its committed .vsix at repo root). The
+# devcontainer installs it from the baked file at attach — it cannot be named by
+# a marketplace id (Open VSX deferred, MD-D5). Staged to a FIXED name so the
+# Dockerfile COPY is version-agnostic across m-vscode releases; verify G15
+# drift-gates the baked bytes against this source .vsix, and the provenance block
+# below records which m-vscode HEAD it came from.
+vsix_src=( "$FORGE/m-vscode/"*.vsix )
+if [ "${#vsix_src[@]}" -ne 1 ] || [ ! -f "${vsix_src[0]}" ]; then
+  echo "stage: expected exactly one m-vscode/*.vsix, found ${#vsix_src[@]} — cannot bake MD-D5" >&2
+  exit 1
+fi
+rm -rf "$CTX/m-vscode"
+mkdir -p "$CTX/m-vscode"
+cp "${vsix_src[0]}" "$CTX/m-vscode/m-vscode.vsix"
+
 # ── provenance: WHICH HEADs this context was cut from ───────────────────────
 # The staged tree is ephemeral, so without this a measurement can name an image
 # ID but not the sources behind it. Written into the context (and therefore not
 # into the image) — the build's own record, read by hand when a result surprises.
 {
   printf 'staged-from:\n'
-  for r in m-cli m-ydb m-stdlib f-stdlib vista-fileman m-devbox; do
+  for r in m-cli m-ydb m-stdlib f-stdlib vista-fileman m-vscode m-devbox; do
     d="$FORGE/$r"; [ -d "$d/.git" ] || continue
     printf '  %-14s %s%s\n' "$r" \
       "$(git -C "$d" rev-parse --short HEAD 2>/dev/null || echo '?')" \

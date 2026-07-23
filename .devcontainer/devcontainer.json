@@ -45,12 +45,19 @@
   "updateRemoteUserUID": true,
   "overrideCommand": false,
 
+  // ── m-vscode extension install-at-attach (MD-D5) ───────────────────────────
+  // The extension ships as a .vsix baked into the image at /opt/m-vscode (Open
+  // VSX is deferred, so it cannot be named by a marketplace id in
+  // customizations.vscode.extensions). Install it from the baked file. `--force`
+  // makes it idempotent across re-attaches/rebuilds; no `|| true` — a failed
+  // install must surface, not be swallowed. The baked bytes are drift-gated
+  // against the m-vscode source by verify-devbox.sh G15.
+  "postCreateCommand": "code --install-extension /opt/m-vscode/m-vscode.vsix --force",
+
   "customizations": {
     "vscode": {
-      // The m-vscode extension is baked into the image and installed from the
-      // baked .vsix at attach (MD-D5) — it cannot be named by a marketplace id.
-      // Wired in the next increment (.vsix bake); this block is the seam it lands
-      // in (an "extensions"/postAttach install of the baked file).
+      // Marketplace-id extensions would go here; m-vscode is installed from the
+      // baked .vsix via postCreateCommand above (it has no marketplace id yet).
     }
   }
 }

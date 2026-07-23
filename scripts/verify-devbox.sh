@@ -62,6 +62,12 @@
 #       topology — a FRESH named volume at /data, seeded from the baked DB — and
 #       prove a bare `m test` is green, so the config's promise is executed, not
 #       asserted on paper.
+#   G15 MD-D5 — the baked m-vscode .vsix matches its source (no drift). The
+#       image bakes the extension .vsix for install-from-file at attach; this
+#       drift-gates the baked bytes against the SINGLE SOURCE (the m-vscode
+#       repo's committed .vsix), so an image built off a stale staged copy, or
+#       an m-vscode release the image has not re-baked, goes RED
+#       [[data-shipping-pin-is-a-stale-grammar]].
 set -uo pipefail
 
 IMG="${1:-m-devbox:0.1.0-local}"
@@ -315,6 +321,20 @@ PY
     echo "  ✓ functional: named-volume /data (seeded from the baked DB) — bare \`m test\` green, $G14_P passed, 0 failed"
   else
     fail "G14 functional: bare \`m test\` on a named-volume /data expected exit 0 / >=5 passed / 0 failed, got rc=$G14_RC passed=$G14_P failed=$G14_F"$'\n'"$(printf '%s' "$G14_OUT" | tail -20)"
+  fi
+fi
+
+echo "== G15: MD-D5 — the baked m-vscode .vsix matches its source (no drift) =="
+vsix_src=( "$FORGE/m-vscode/"*.vsix )
+if [ "${#vsix_src[@]}" -ne 1 ] || [ ! -f "${vsix_src[0]}" ]; then
+  fail "G15: expected exactly one m-vscode/*.vsix under $FORGE/m-vscode, found ${#vsix_src[@]}"
+else
+  SRC_SHA="$(sha256sum "${vsix_src[0]}" | cut -d' ' -f1)"
+  BAKED_SHA="$(run "$IMG" sha256sum /opt/m-vscode/m-vscode.vsix 2>/dev/null | cut -d' ' -f1)"
+  if [ -n "$BAKED_SHA" ] && [ "$BAKED_SHA" = "$SRC_SHA" ]; then
+    echo "  ✓ baked .vsix sha256 == m-vscode source ($(basename "${vsix_src[0]}"), ${SRC_SHA:0:12}…) — no drift"
+  else
+    fail "G15: baked .vsix sha ($BAKED_SHA) != m-vscode source sha ($SRC_SHA) — rebake needed (stale staged .vsix, or m-vscode released and the image was not re-baked)"
   fi
 fi
 

@@ -233,6 +233,13 @@ RUN set -eu; \
     done
 COPY entrypoint.sh /usr/local/bin/devbox-entrypoint
 
+# The m-vscode extension .vsix, baked for install-from-file at attach (MD-D5).
+# It cannot be named by a marketplace id (Open VSX deferred), so the devcontainer
+# installs it from this path (postCreateCommand). Single-sourced from the
+# m-vscode repo, staged to a fixed name; verify-devbox.sh G15 drift-gates the
+# baked bytes against that source .vsix. Late COPY — the bake layers stay cached.
+COPY m-vscode/m-vscode.vsix /opt/m-vscode/m-vscode.vsix
+
 # Engine SELECTOR baked as image ENV (PR-11; engine-selection-on-attach ADR).
 # The ydb_* ENVs above are engine INTERIORS; M_ENGINE is the SELECTOR that tells
 # `m` WHICH engine to run — distinct concepts (ADR §2), and a selector is legal
