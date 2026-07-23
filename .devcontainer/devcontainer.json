@@ -1,0 +1,56 @@
+// m-devbox — VS Code Dev Container definition (P3, m-devbox proposal §3.1 / §5.3).
+//
+// Attach with "Dev Containers: Reopen in Container". You get YottaDB, the five
+// native callouts, the `m`/`m-ydb` toolchain, MSL, FileMan and FSL — no host
+// compiler, Go toolchain, or org clone. A bare `m test` is green within a
+// minute (MD-D2; the engine selector is baked as ENV M_ENGINE=ydb, PR-11).
+{
+  "name": "m-devbox",
+
+  // Pin the image. Pre-publish this is the locally-built tag (`make build`);
+  // at P6 (publication) this becomes a digest-pinned published reference so an
+  // attach is byte-reproducible. Never a floating `:latest`.
+  "image": "m-devbox:0.1.0-local",
+
+  // ── Mount rule 1 (§3.1, NOT optional): $ydb_dir on a NAMED VOLUME ──────────
+  // The database lives under /data (/data/m.gld + /data/g/m.dat). It MUST be a
+  // named Docker volume, NEVER a host bind mount: YottaDB's fcntl region locking
+  // is unreliable over the virtiofs/9p bind-mount translation Docker Desktop uses
+  // on macOS/Windows, and a lost lock corrupts the database. A named volume lives
+  // in the Docker VM's native filesystem, where locking is honoured. Docker seeds
+  // the fresh volume from the image's baked /data (FileMan + MSL + FSL) on first
+  // attach, and it then persists across rebuilds. verify-devbox.sh G14 red-gates
+  // that this mount is type=volume and that nothing binds /data.
+  "mounts": [
+    "source=m-devbox-ydb-data,target=/data,type=volume"
+  ],
+
+  // ── Mount rule 2 (§3.1): only the developer's own M source is bind-mounted ──
+  // The workspace (the user's project) binds to /work — source files, where a
+  // bind mount is correct (no engine locking on plain source). The engine's
+  // database is NOT here; it is the named volume above.
+  "workspaceFolder": "/work",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/work,type=bind,consistency=cached",
+
+  // ── PR-6: every runtime uid must own a /etc/passwd row ─────────────────────
+  // The run-lock home is passwd-derived and fails closed, so a uid with no
+  // passwd entry refuses every engine verb. `remoteUser` + `updateRemoteUserUID`
+  // is the sanctioned devcontainer path (proposal §5.3): the CLI rewrites the
+  // baked `devbox` user's uid to match the host uid while KEEPING its passwd row,
+  // so ownership on the bind-mounted /work lines up and the run-lock still
+  // resolves. overrideCommand:false keeps the image ENTRYPOINT (the PR-6 passwd
+  // self-heal) running at container start as a second guard; CMD `tail -f` is the
+  // keep-alive.
+  "remoteUser": "devbox",
+  "updateRemoteUserUID": true,
+  "overrideCommand": false,
+
+  "customizations": {
+    "vscode": {
+      // The m-vscode extension is baked into the image and installed from the
+      // baked .vsix at attach (MD-D5) — it cannot be named by a marketplace id.
+      // Wired in the next increment (.vsix bake); this block is the seam it lands
+      // in (an "extensions"/postAttach install of the baked file).
+    }
+  }
+}

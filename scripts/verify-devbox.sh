@@ -54,6 +54,14 @@
 #       UNSET the tool REFUSES (exit 4 ENGINE_UNRESOLVED), never guesses — so
 #       the selector cannot silently vanish and leave the 60 s-to-green claim
 #       resting on an ambient default [[degrade-loud-or-refuse]].
+#   G14 §3.1 — the devcontainer mount rules, ASSERTED not just documented.
+#       Static: parse .devcontainer/devcontainer.json and require $ydb_dir
+#       (/data) to be a NAMED VOLUME, nothing to bind-mount /data (YDB region
+#       locking corrupts over virtiofs/9p), and PR-6's remoteUser=devbox +
+#       updateRemoteUserUID. Functional: run the image under that exact mount
+#       topology — a FRESH named volume at /data, seeded from the baked DB — and
+#       prove a bare `m test` is green, so the config's promise is executed, not
+#       asserted on paper.
 set -uo pipefail
 
 IMG="${1:-m-devbox:0.1.0-local}"
@@ -260,6 +268,54 @@ if [ "$NEG_RC" -eq 4 ] && grep -q ENGINE_UNRESOLVED <<<"$NEG_OUT"; then
   echo "  ✓ negative control: M_ENGINE unset → exit 4 ENGINE_UNRESOLVED (selector is load-bearing, not an ambient default)"
 else
   fail "G13 negative: M_ENGINE unset must exit 4 with ENGINE_UNRESOLVED, got rc=$NEG_RC"$'\n'"$(printf '%s' "$NEG_OUT" | tail -20)"
+fi
+
+echo "== G14: §3.1 — devcontainer mounts: \$ydb_dir (/data) on a NAMED VOLUME =="
+DC="$HERE/../.devcontainer/devcontainer.json"
+if [ ! -f "$DC" ]; then
+  fail "G14: no .devcontainer/devcontainer.json at $DC"
+else
+  # (a) STATIC: parse the JSONC and enforce the two mount rules + PR-6 user.
+  DC_OUT="$(python3 - "$DC" 2>&1 <<'PY'
+import json, re, sys
+raw = open(sys.argv[1]).read()
+noc = re.sub(r'(^|\s)//[^\n]*', r'\1', raw)          # strip // line comments
+cfg = json.loads(noc)
+def kv(m): return dict(p.split("=", 1) for p in m.split(",") if "=" in p)
+mounts = cfg.get("mounts", [])
+allm = list(mounts) + ([cfg["workspaceMount"]] if "workspaceMount" in cfg else [])
+errs = []
+if not any(kv(m).get("target") == "/data" and kv(m).get("type") == "volume" for m in mounts):
+    errs.append("/data is not mounted as a named volume (type=volume)")
+for m in allm:
+    if kv(m).get("target") == "/data" and kv(m).get("type") == "bind":
+        errs.append("/data is BIND-mounted — YDB region locking corrupts over bind mounts")
+if cfg.get("remoteUser") != "devbox":
+    errs.append("remoteUser is not devbox (PR-6)")
+if cfg.get("updateRemoteUserUID") is not True:
+    errs.append("updateRemoteUserUID is not true (PR-6)")
+if errs:
+    print("; ".join(errs)); sys.exit(1)
+print("/data=named volume, no bind on /data, remoteUser=devbox + updateRemoteUserUID")
+PY
+)"
+  if [ $? -eq 0 ]; then
+    echo "  ✓ static: $DC_OUT"
+  else
+    fail "G14 static: $DC_OUT"
+  fi
+  # (b) FUNCTIONAL: the image under the devcontainer topology — a fresh named
+  # volume at /data (Docker seeds it from the baked DB) — bare `m test` green.
+  VOL=m-devbox-g14-verify
+  docker volume rm "$VOL" >/dev/null 2>&1 || true
+  G14_OUT="$(timeout 240 docker run --rm -v "$VOL":/data -w /opt/examples/hello "$IMG" m test 2>&1)"; G14_RC=$?
+  docker volume rm "$VOL" >/dev/null 2>&1 || true
+  G14_SCORE="$(printf '%s' "$G14_OUT" | mtest_score)"; G14_P="${G14_SCORE%% *}"; G14_F="${G14_SCORE##* }"
+  if [ "$G14_RC" -eq 0 ] && [ "$G14_F" = 0 ] && [ "$G14_P" != NOTOK ] && [ "$G14_P" != ERR ] && [ "$G14_P" -ge 5 ] 2>/dev/null; then
+    echo "  ✓ functional: named-volume /data (seeded from the baked DB) — bare \`m test\` green, $G14_P passed, 0 failed"
+  else
+    fail "G14 functional: bare \`m test\` on a named-volume /data expected exit 0 / >=5 passed / 0 failed, got rc=$G14_RC passed=$G14_P failed=$G14_F"$'\n'"$(printf '%s' "$G14_OUT" | tail -20)"
+  fi
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
