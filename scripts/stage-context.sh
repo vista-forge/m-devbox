@@ -20,7 +20,7 @@
 #           longer a plain COPY of source; the image installs it durably with
 #           `m lib install` so list/verify/uninstall work (PR-8 / §5.1(c)).
 #   - FSL   the f-stdlib install unit, same shape.
-#   - FileMan  the pinned, checksum-verified vista-fileman source + its build
+#   - FileMan  the pinned, checksum-verified fileman source + its build
 #           scripts, installed inside `docker build` over the local transport
 #           (§5.2(a) / PR-10).
 #   - examples/hello  the starter project (MD-D2), copied from this repo.
@@ -88,11 +88,11 @@ cp "$FORGE/m-stdlib/tests/"*.m "$CTX/msl-tests/"
 cp "$FORGE/f-stdlib/tests/"*.m "$CTX/fsl-tests/"
 
 # ── FileMan: pinned source + build scripts (installed in-build, §5.2(a)) ─────
-# The vista-fileman source is pinned to an immutable commit and verified
+# The fileman source is pinned to an immutable commit and verified
 # byte-for-byte against seed/sources.sha256. Fetch once (sync-time) if absent,
 # then always re-verify offline before copying — a stale or drifted tree must
 # never reach the image [[data-shipping-pin-is-a-stale-grammar]].
-VF="$FORGE/vista-fileman"
+VF="$FORGE/fileman"
 VF_SRC="$("$VF/scripts/fetch-source.sh" --path)"
 if [ ! -d "$VF_SRC" ]; then
   echo "stage: FileMan source absent — fetching (sync-time, pinned commit)"
@@ -130,7 +130,7 @@ cp "${vsix_src[0]}" "$CTX/m-vscode/m-vscode.vsix"
 # into the image) — the build's own record, read by hand when a result surprises.
 {
   printf 'staged-from:\n'
-  for r in m-cli m-ydb m-stdlib f-stdlib vista-fileman m-vscode m-devbox; do
+  for r in m-cli m-ydb m-stdlib f-stdlib fileman m-vscode m-devbox; do
     d="$FORGE/$r"; [ -d "$d/.git" ] || continue
     printf '  %-14s %s%s\n' "$r" \
       "$(git -C "$d" rev-parse --short HEAD 2>/dev/null || echo '?')" \
