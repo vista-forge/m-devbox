@@ -1,8 +1,9 @@
 DEMO    ; examples/hello - a runnable demo. Unlike HELLO (a library whose top
-        ; label just quits), this routine's top label DOES output, so hitting
+        ; label just quits), this routine's top label writes output, so hitting
         ; Run Code (Code Runner -> m-run -> do ^DEMO) prints something. It calls
-        ; HELLO's extrinsics, resolved because m-run puts this file's directory
-        ; on $ydb_routines.
-        write $$greet^HELLO("m-devbox"),!
-        write "ISO 2026-07-24 in FileMan form: ",$$fmDate^HELLO("2026-07-24"),!
+        ; HELLO's greet extrinsic, resolved because m-run puts this file's
+        ; directory on $ydb_routines.
+        write "Welcome to the m-devbox!",!
+        write $$greet^HELLO("developer"),!
+        write "Edit this routine and Run Code again to see your changes.",!
         quit
