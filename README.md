@@ -44,6 +44,11 @@ docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
 # then open http://127.0.0.1:8080  → editor + terminal + `m test`, offline
 ```
 
+`-v "$PWD":/work` mounts **the directory you run the command from** — so `cd`
+into your project first, or pass an explicit path
+(`-v /abs/path/to/project:/work`). code-server opens `/work`, so whatever you
+mount there is what the file explorer shows.
+
 Use **`http://127.0.0.1:8080`**, not `http://localhost:8080`: the port is
 published on IPv4 loopback only, and `localhost` often resolves to IPv6 (`::1`)
 first — which has no listener, so the browser shows `ERR_CONNECTION_REFUSED`
