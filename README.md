@@ -56,16 +56,18 @@ container a fixed `--name` and force-remove it first — this frees the port eve
 time and touches nothing else:
 
 ```bash
-docker rm -f m-devbox 2>/dev/null
+docker ps -aq --filter ancestor=m-devbox:0.1.0-local | xargs -r docker rm -f
 docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
 ```
 
+The first line removes **any** container from the devbox image — named or not —
+so an old run (e.g. one started without `--name`) can't keep holding the port.
 Drop this in your shell profile (`~/.bashrc`) to relaunch from any project dir
 with one word — it always starts fresh:
 
 ```bash
 mdevbox() {
-  docker rm -f m-devbox >/dev/null 2>&1
+  docker ps -aq --filter ancestor=m-devbox:0.1.0-local | xargs -r docker rm -f >/dev/null 2>&1
   docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
 }
 ```
