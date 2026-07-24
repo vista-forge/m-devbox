@@ -49,6 +49,27 @@ into your project first, or pass an explicit path
 (`-v /abs/path/to/project:/work`). code-server opens `/work`, so whatever you
 mount there is what the file explorer shows.
 
+**Relaunching (free port 8080 automatically).** code-server runs in the
+foreground, so a previous container keeps holding the port until you stop it
+(`Bind for 127.0.0.1:8080 failed: port is already allocated`). Give the
+container a fixed `--name` and force-remove it first — this frees the port every
+time and touches nothing else:
+
+```bash
+docker rm -f m-devbox 2>/dev/null
+docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
+```
+
+Drop this in your shell profile (`~/.bashrc`) to relaunch from any project dir
+with one word — it always starts fresh:
+
+```bash
+mdevbox() {
+  docker rm -f m-devbox >/dev/null 2>&1
+  docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
+}
+```
+
 Use **`http://127.0.0.1:8080`**, not `http://localhost:8080`: the port is
 published on IPv4 loopback only, and `localhost` often resolves to IPv6 (`::1`)
 first — which has no listener, so the browser shows `ERR_CONNECTION_REFUSED`
