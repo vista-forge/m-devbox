@@ -51,36 +51,163 @@ DEMO    ; examples/hello — the demo app: a guided tour of the devbox stack.
         ; ---------- the tour ----------
         ;
 tour    ; Print the guided tour. Called by the top label; safe to re-run.
-        new ien
-        write "== m-devbox: the stack, demonstrated ==",!!
-        write "1. MSL (m-stdlib) — no FileMan, no VistA, just the engine.",!
-        write "   $$greet^DEMO(""world"")            -> ",$$greet("world"),!
-        write "   $$asJson^DEMO(""HAMMER"",10)       -> ",$$asJson("HAMMER",10),!!
-        write "2. FSL date conversion — FSL on top of MSL (the f -> m waterline).",!
-        write "   $$fmDate^DEMO(""2026-01-15"")      -> ",$$fmDate("2026-01-15"),!
-        write "   (FSLDATE parses the ISO string with MSL's STDDATE, then maps",!
-        write "    it to FileMan's internal form: 3260115 = 15 Jan 2026.)",!!
-        write "3. FileMan is resident. Seeding the standalone environment and",!
-        write "   installing the two demo files (#999300 ZFSL WIDGET, #999301",!
-        write "   ZFSL CATEGORY) with five widgets to play with...",!
-        if '$$setup() write "   FIXTURE INSTALL FAILED — the engine is not in the expected state.",! quit
-        write "   ready.",!!
-        write "4. The data dictionary is data — read it with FSLDD.",!
-        write "   STATUS is a ",$$fieldType(999300,"STATUS"),", WHEN is a ",$$fieldType(999300,"WHEN")
-        write ", CAT is a ",$$fieldType(999300,"CAT"),".",!
-        write "   (Whole-file DD as JSON: write $$json^FSLDD(999300))",!!
-        write "5. CRUD through FSLDB — real FileMan filing, typed JSON in and out.",!
+        ; Each demonstration prints as three lines — call / returns / means —
+        ; so a reader can see what ran, what came back, and why it matters.
+        ; Seed the environment + demo files FIRST: FileMan's own sign-on path
+        ; writes a stray blank line, and doing it here keeps that off the tour.
+        new ien,ready
+        set ready=$$setup()
+        do rule
+        write "  m-devbox — a guided tour of the stack you are standing on",!
+        do rule
+        write !
+        write "You just ran an M (MUMPS) routine on a live YottaDB engine. This",!
+        write "container also ships two code libraries and a real VA FileMan",!
+        write "database, already installed and running. The tour below calls each",!
+        write "layer in turn and explains what came back.",!!
+        write "Every call it makes is in src/DEMO.m — open that file and read",!
+        write "along. Each demonstration prints three lines:",!
+        write "   call     what was run",!
+        write "   returns  what came back",!
+        write "   means    what it tells you",!!
+        ;
+        do head("STEP 1 of 6","MSL, the engine-neutral library (routines named STD*)")
+        write "MSL is m-stdlib: strings, JSON, dates, formatting, logging, crypto,",!
+        write "HTTP. It needs no database and no VistA, so it runs on a bare M",!
+        write "engine. There is nothing to install and nothing to import — the",!
+        write "routines are already on the engine's routine path, so you call them",!
+        write "by name: $$label^ROUTINE(args). That is the whole ceremony.",!!
+        do show("$$greet^DEMO(""world"")",$$greet("world"))
+        write "  means    Two MSL calls did that: $$f^STDFMT for Python-style",!
+        write "           ""{}"" formatting, $$toUpperASCII^STDSTR for the case.",!!
+        do show("$$asJson^DEMO(""HAMMER"",10)",$$asJson("HAMMER",10))
+        write "  means    JSON is a TREE in M — one node per value. This one was",!
+        write "           built as t=""o"" (an object), t(""name"")=""s:HAMMER"" (a",!
+        write "           string), t(""qty"")=""n:10"" (a number), then handed to",!
+        write "           $$encode^STDJSON. $$parse^STDJSON reads it back.",!!
+        ;
+        do head("STEP 2 of 6","FSL sits on MSL: one library calling the other")
+        write "FSL is f-stdlib: VA FileMan wrapped in a typed JSON API. FileMan",!
+        write "keeps dates in its own internal format, so FSL converts them — and",!
+        write "does the ISO parsing with MSL underneath. FSL may call MSL; MSL",!
+        write "never calls FSL. That one-way rule is the ""waterline"", and it is",!
+        write "how you choose a library: does this need FileMan? No -> STD*.",!
+        write "Yes -> FSL*.",!!
+        do show("$$fmDate^DEMO(""2026-01-15"")",$$fmDate("2026-01-15"))
+        write "  means    FileMan's internal date form: 326 = the year 2026",!
+        write "           (years since 1700), 01 = January, 15 = the day. Give",!
+        write "           FSL ISO 8601, get FileMan's form; $$fromFm^FSLDATE",!
+        write "           goes the other way. Junk in returns """" — never a guess.",!!
+        ;
+        do head("STEP 3 of 6","FileMan is resident, and needs one line of setup")
+        write "VA FileMan 22.2 is installed in this image. On a real VistA system",!
+        write "Kernel signs a user on and sets DUZ (who you are), DT (today) and U",!
+        write "(""^""); there is no Kernel here, so $$init^FSLENV() seeds those",!
+        write "once. It refuses, and changes nothing, if something already owns",!
+        write "them — so it is safe to call.",!!
+        if 'ready do  quit
+        . write "The demo files would NOT install, so the engine is not in the",!
+        . write "state this tour expects, and the rest of it is skipped. Start",!
+        . write "here: m test --engine ydb /opt/examples/hello/tests",!
+        write "Two demo files have already been installed for you:",!
+        write "   #999300 ZFSL WIDGET    NAME, CODE, QTY, STATUS, WHEN, CAT, ...",!
+        write "   #999301 ZFSL CATEGORY  NAME",!
+        write "seeded with five widgets: HAMMER, WRENCH, GADGET, ANVIL, PLIERS.",!
+        write "They are ordinary FileMan files, built through FileMan's own API —",!
+        write "the same as any file a VistA package owns.",!!
+        ;
+        do head("STEP 4 of 6","The data dictionary is data: read it with FSLDD")
+        write "FileMan stores the DESCRIPTION of every file in the database too:",!
+        write "field names, types, indexes, pointers. That is the data dictionary",!
+        write "(the ""DD""). FSLDD hands it to you as JSON, so a program can",!
+        write "discover a file's shape instead of hard-coding it.",!!
+        do show("$$fieldType^DEMO(999300,""STATUS"")",$$fieldType(999300,"STATUS"))
+        write "  means    STATUS holds a set of codes (A = ACTIVE, I = INACTIVE).",!
+        write "           WHEN is a ",$$fieldType(999300,"WHEN"),"; CAT is a ",$$fieldType(999300,"CAT")
+        write " — it points at",!
+        write "           file #999301, FileMan's version of a foreign key.",!
+        write "  more     write $$json^FSLDD(999300) prints the whole file: every",!
+        write "           field, type, index and key, as one JSON document.",!!
+        ;
+        do head("STEP 5 of 6","Create, read, update, delete with FSLDB")
+        write "FSLDB is FileMan filing with a typed JSON front door. You pass",!
+        write "values keyed by FIELD NAME; it returns an envelope (more on that in",!
+        write "step 6). Dates are ISO both ways. Watch one record's whole life:",!!
         set ien=$$addWidget("CHISEL",3)
-        write "   created CHISEL, IEN ",ien,", QTY ",$$widgetQty(ien),!
-        write "   set QTY to 9 -> ok=",$$setQty(ien,9),", QTY now ",$$widgetQty(ien),!
-        write "   found by name -> IEN ",$$findWidget("CHISEL"),"  (FSLQ, B index)",!
-        write "   deleted -> ok=",$$dropWidget(ien),!!
-        write "6. Failures are structured, never raw FileMan error arrays.",!
-        write "   $$badWrite^DEMO() -> ",$$badWrite(),!!
-        write "The fixture files are left installed — poke at them:",!
-        write "   write $$read^FSLDB(999300,1,"""","""")",!
-        write "   write $$list^FSLQ(999300,""ST"","""",10,"""",""QTY"",""STATUS = A"")",!
-        write "Remove them with: do remove^FSLFIX",!
+        do show("$$addWidget^DEMO(""CHISEL"",3)",ien)
+        write "  means    A new record was filed and 6 is its IEN — the internal",!
+        write "           entry number, FileMan's row id (the seed holds 1..5, so",!
+        write "           the new one is 6). FSL sent {""NAME"":""CHISEL"",""QTY"":3}",!
+        write "           to FileMan's own record filer.",!!
+        do show("$$widgetQty^DEMO("_ien_")",$$widgetQty(ien))
+        write "  means    Read it back. FSLDB asked FileMan for field 2 (QTY) —",!
+        write "           the field NUMBER, which FSLDD resolved from the name.",!!
+        write "  call     $$setQty^DEMO(",ien,",9)",!
+        write "  returns  ",$$setQty(ien,9),"   (1 = filed)",!
+        write "  means    An edit through FileMan's field filer. Reading QTY back",!
+        write "           now gives ",$$widgetQty(ien),".",!!
+        do show("$$findWidget^DEMO(""CHISEL"")",$$findWidget("CHISEL"))
+        write "  means    A lookup by name, through FileMan's ""B"" index — the",!
+        write "           cross-reference FileMan maintains on the .01 field.",!
+        write "           FSLQ also does paged listing and filtering.",!!
+        write "  call     $$dropWidget^DEMO(",ien,")",!
+        write "  returns  ",$$dropWidget(ien),"   (1 = deleted)",!
+        write "  means    A reference-checked delete: FSLDB refuses if another",!
+        write "           record still points at this one, instead of leaving a",!
+        write "           dangling pointer behind.",!!
+        ;
+        do head("STEP 6 of 6","When something goes wrong, you get an envelope")
+        write "Every FSL verb answers with the same shape — an ""envelope"":",!
+        write "   {""ok"":true, ""data"":{...}}      it worked; read data",!
+        write "   {""ok"":false,""errors"":[...]}    it did not; read errors",!
+        write "Your code checks ""ok"" first and never has to touch FileMan's own",!
+        write "error arrays. Here is a deliberate mistake — writing to a field",!
+        write "that does not exist on the file:",!!
+        do show("$$badWrite^DEMO()",$$badWrite())
+        write "  means    ok:false, so nothing was filed. The error names its own",!
+        write "           code (FSL-NOFIELD), the offending field (BOGUS) and a",!
+        write "           readable message. Unpack it with MSL's $$parse^STDJSON,",!
+        write "           the way $$ok^DEMO and $$unpack^DEMO do.",!!
+        ;
+        do rule
+        write "  WHAT NOW",!
+        do rule
+        write !
+        write "Read the code you just watched run:",!
+        write "   /opt/examples/hello/src/DEMO.m     every call above, commented",!
+        write "   /opt/examples/hello/src/HELLO.m    the three-line hello world",!
+        write "   /opt/examples/hello/README.md      which library to reach for",!!
+        write "Run the tests — they assert on exactly these calls, so they are",!
+        write "worked examples that cannot go stale:",!
+        write "   cd /opt/examples/hello && m test",!!
+        write "Look anything up (every module, every signature):",!
+        write "   m doc STDJSON      m doc STDSTR      m doc STDDATE",!
+        write "   m doc FSLDB        m doc FSLDD       m doc FSLQ",!
+        write "   m lib list                          what is installed",!!
+        write "The two demo files are still there — try them from a shell:",!
+        write "   m vista exec --engine ydb --transport local \",!
+        write "     'set x=$$setup^DEMO() write $$read^FSLDB(999300,1,"""","""")'",!
+        write "     -> widget 1 (HAMMER) as JSON, including its word-processing",!
+        write "        NOTES and its ITEMS sub-records",!
+        write "   ... write $$list^FSLQ(999300,""ST"","""",10,"""",""QTY"",""STATUS = A"")",!
+        write "     -> the active widgets, walked through the STATUS index",!!
+        write "Start your own project by copying this folder; put your routines",!
+        write "beside these and name test suites *TST.m. When you are done with",!
+        write "the demo files, remove them with:  do remove^FSLFIX",!
+        quit
+        ;
+rule    ; A horizontal rule, so the sections are findable in a long scroll.
+        write "──────────────────────────────────────────────────────────────────",!
+        quit
+        ;
+head(step,title)        ; A section heading.
+        write !,step," — ",title,!
+        write "──────────────────────────────────────────────────────────────────",!
+        quit
+        ;
+show(call,result)       ; One demonstration: what was run, and what came back.
+        write "  call     ",call,!
+        write "  returns  ",result,!
         quit
         ;
         ; ---------- MSL: the engine-neutral layer ----------
