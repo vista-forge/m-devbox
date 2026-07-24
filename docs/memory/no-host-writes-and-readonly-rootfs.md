@@ -16,8 +16,11 @@ to link):
 1. **The `examples/hello` routines had NO `.o`** (unlike the libraries, which
    `m lib install` object-precompiled — 906 `.o` in `/opt/lib/r`). Fix: Dockerfile
    P2 bake step 5 runs `m test … /opt/examples/hello` at build (driver seam =
-   image construction; `m test` compiles `.o` beside `.m`), baking `HELLO.o` /
-   `HELLOTST.o`.
+   image construction; `m test` compiles `.o` beside `.m`), baking `DEMO.o` /
+   `DEMOTST.o` / `HELLO.o`. **Only what the suite REFERENCES gets compiled** —
+   `HELLO` (the hello-world app, called by nothing) is covered by a deliberate
+   `$TEXT(+1^HELLO)` residency assertion in `DEMOTST`; a routine the suite never
+   names would ship with no `.o` and fail to link under `--read-only`.
 2. **Same-second installs leave some library `.o` with mtime EQUAL to their `.m`**
    (measured: `FSLDATE.m` == `FSLDATE.o` to the second; `STDSTR.o` happened to
    land 1 s newer, so it passed and `FSLDATE` failed — a misleading MSL-passes /

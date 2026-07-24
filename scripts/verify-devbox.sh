@@ -43,8 +43,9 @@
 #       in the image (the FSL suites exercise FileMan, so this is also a
 #       second, behavioural FileMan proof).
 #   G12 examples/hello — the MD-D2 acceptance seed: `m test` on the starter
-#       project is green, and it calls BOTH an STD* and an FSL* routine, so a
-#       green run is the falsifiable form of "the environment is real".
+#       project is green. Its DEMO suite drives MSL (STD*), FileMan, and FSL
+#       (FSL*) CRUD/query/DD end to end, so a green run is the falsifiable form
+#       of "the environment is real".
 #   ── P3 (attach) ────────────────────────────────────────────────────────────
 #   G13 PR-11 — the engine SELECTOR is baked and load-bearing. Every gate above
 #       passes `--engine ydb`, which sidesteps engine selection; a real
@@ -261,7 +262,7 @@ echo "== G11: FSL resident + working on FileMan — the full f-stdlib suite =="
 suite_green "f-stdlib suite" /opt/fsl/tests 1
 
 echo "== G12: examples/hello — the MD-D2 acceptance seed (STD* + FSL*, green) =="
-suite_green "examples/hello" /opt/examples/hello/tests 5
+suite_green "examples/hello" /opt/examples/hello/tests 20
 
 echo "== G13: PR-11 — a bare \`m test\` selects the baked engine (no --engine) =="
 # The truest attach simulation: cwd = the project, no flags, no exported vars
@@ -269,10 +270,10 @@ echo "== G13: PR-11 — a bare \`m test\` selects the baked engine (no --engine)
 BARE_OUT="$(timeout 240 docker run --rm -w /opt/examples/hello "$IMG" m test 2>&1)"; BARE_RC=$?
 BARE_SCORE="$(printf '%s' "$BARE_OUT" | mtest_score)"
 BARE_PASS="${BARE_SCORE%% *}"; BARE_FAIL="${BARE_SCORE##* }"
-if [ "$BARE_RC" -eq 0 ] && [ "$BARE_FAIL" = 0 ] && [ "$BARE_PASS" != NOTOK ] && [ "$BARE_PASS" != ERR ] && [ "$BARE_PASS" -ge 5 ] 2>/dev/null; then
+if [ "$BARE_RC" -eq 0 ] && [ "$BARE_FAIL" = 0 ] && [ "$BARE_PASS" != NOTOK ] && [ "$BARE_PASS" != ERR ] && [ "$BARE_PASS" -ge 20 ] 2>/dev/null; then
   echo "  ✓ bare \`m test\` (no --engine) green — $BARE_PASS passed, 0 failed; baked M_ENGINE=ydb resolved the engine"
 else
-  fail "G13 positive: bare \`m test\` expected exit 0 / >=5 passed / 0 failed, got rc=$BARE_RC passed=$BARE_PASS failed=$BARE_FAIL"$'\n'"$(printf '%s' "$BARE_OUT" | tail -20)"
+  fail "G13 positive: bare \`m test\` expected exit 0 / >=20 passed / 0 failed, got rc=$BARE_RC passed=$BARE_PASS failed=$BARE_FAIL"$'\n'"$(printf '%s' "$BARE_OUT" | tail -20)"
 fi
 # Negative control: unset the baked selector → the tool must REFUSE, not default
 # to ydb. `-e M_ENGINE=` overrides the image ENV with empty (== unset to Resolve).
@@ -324,10 +325,10 @@ PY
   G14_OUT="$(timeout 240 docker run --rm -v "$VOL":/data -w /opt/examples/hello "$IMG" m test 2>&1)"; G14_RC=$?
   docker volume rm "$VOL" >/dev/null 2>&1 || true
   G14_SCORE="$(printf '%s' "$G14_OUT" | mtest_score)"; G14_P="${G14_SCORE%% *}"; G14_F="${G14_SCORE##* }"
-  if [ "$G14_RC" -eq 0 ] && [ "$G14_F" = 0 ] && [ "$G14_P" != NOTOK ] && [ "$G14_P" != ERR ] && [ "$G14_P" -ge 5 ] 2>/dev/null; then
+  if [ "$G14_RC" -eq 0 ] && [ "$G14_F" = 0 ] && [ "$G14_P" != NOTOK ] && [ "$G14_P" != ERR ] && [ "$G14_P" -ge 20 ] 2>/dev/null; then
     echo "  ✓ functional: named-volume /data (seeded from the baked DB) — bare \`m test\` green, $G14_P passed, 0 failed"
   else
-    fail "G14 functional: bare \`m test\` on a named-volume /data expected exit 0 / >=5 passed / 0 failed, got rc=$G14_RC passed=$G14_P failed=$G14_F"$'\n'"$(printf '%s' "$G14_OUT" | tail -20)"
+    fail "G14 functional: bare \`m test\` on a named-volume /data expected exit 0 / >=20 passed / 0 failed, got rc=$G14_RC passed=$G14_P failed=$G14_F"$'\n'"$(printf '%s' "$G14_OUT" | tail -20)"
   fi
 fi
 
@@ -355,10 +356,10 @@ G16_OUT="$(timeout 240 docker run --rm --read-only --user 1000:0 \
   -w /opt/examples/hello "$IMG" m test 2>&1)"; G16_RC=$?
 docker volume rm "$VOL" >/dev/null 2>&1 || true
 G16_SCORE="$(printf '%s' "$G16_OUT" | mtest_score)"; G16_P="${G16_SCORE%% *}"; G16_F="${G16_SCORE##* }"
-if [ "$G16_RC" -eq 0 ] && [ "$G16_F" = 0 ] && [ "$G16_P" != NOTOK ] && [ "$G16_P" != ERR ] && [ "$G16_P" -ge 5 ] 2>/dev/null; then
+if [ "$G16_RC" -eq 0 ] && [ "$G16_F" = 0 ] && [ "$G16_P" != NOTOK ] && [ "$G16_P" != ERR ] && [ "$G16_P" -ge 20 ] 2>/dev/null; then
   echo "  ✓ read-only rootfs (writable = tmpfs run-lock-home + /tmp + named-vol /data only) — bare \`m test\` green, $G16_P passed, 0 failed"
 else
-  fail "G16: bare \`m test\` under --read-only expected exit 0 / >=5 passed / 0 failed, got rc=$G16_RC passed=$G16_P failed=$G16_F"$'\n'"$(printf '%s' "$G16_OUT" | tail -25)"
+  fail "G16: bare \`m test\` under --read-only expected exit 0 / >=20 passed / 0 failed, got rc=$G16_RC passed=$G16_P failed=$G16_F"$'\n'"$(printf '%s' "$G16_OUT" | tail -25)"
 fi
 
 echo "== G17: PR-23 — code-server boots OFFLINE and the m-vscode extension is baked =="

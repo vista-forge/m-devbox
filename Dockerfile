@@ -210,7 +210,10 @@ COPY examples/ /opt/examples/
 #   (1) the examples/hello routines have NO .o (unlike the libraries, already
 #       object-precompiled by `m lib install`). Compile them via the driver seam
 #       (image construction, same category as `m lib install`); the run doubles
-#       as a build-time green check, leaving HELLO.o / HELLOTST.o baked.
+#       as a build-time green check, leaving DEMO.o / DEMOTST.o / HELLO.o baked.
+#       (HELLO is the hello-world app the suite never calls, so DEMOTST carries
+#       a $TEXT residency assertion on it purely to force that compile — drop
+#       the assertion and HELLO stops linking under --read-only.)
 #   (2) SAME-SECOND installs leave some library .o with mtime EQUAL to their .m
 #       (e.g. FSLDATE), and YDB re-links when `.m >= .o` — so under --read-only
 #       that .o write fails. `touch` every baked .o so it is unambiguously newer

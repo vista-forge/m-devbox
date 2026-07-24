@@ -40,7 +40,7 @@ what makes `m lib list`/`verify`/`uninstall` work on the running image.
 | G9 `m lib verify` m-stdlib · f-stdlib | ok · ok (ledger == engine) |
 | G10 FileMan resident (`$$GET1^DIQ`) | `FILE` |
 | G11 f-stdlib suite (FSL on FileMan) | 205 / 0 |
-| G12 `examples/hello` (STD* + FSL*) | 5 / 0 |
+| G12 `examples/hello` (STD* + FSL*) | 25 / 0 (2026-07-24; 5 / 0 before the DEMO suite grew to the full MSL+FSL tour) |
 
 Durable installs: `m lib install` compiled 40 MSL + 7 FSL routines into
 `/opt/lib/r` under the intent-then-commit ledger (PR-8); FileMan installed via
