@@ -384,5 +384,19 @@ else
   fail "G17: code-server offline boot / baked-extension check failed (rc=$G17_RC)"$'\n'"$(printf '%s' "$G17_OUT" | tail -25)"
 fi
 
+echo "== G18: the m-vscode status probe is healthy over local (PR-23) =="
+# The extension's status chip runs exactly this (m-vscode argv.ts, ydb + no
+# container -> --transport local). If it defaulted to the driver's REMOTE
+# transport it would fail "remote transport needs a host" — the devbox must
+# answer the chip's probe out of the box.
+G18_OUT="$(timeout 60 docker run --rm "$IMG" m vista status --engine ydb --transport local -o json 2>&1)"; G18_RC=$?
+if [ "$G18_RC" -eq 0 ] \
+   && printf '%s' "$G18_OUT" | grep -qE '"running":[[:space:]]*true' \
+   && printf '%s' "$G18_OUT" | grep -qE '"healthy":[[:space:]]*true'; then
+  echo "  ✓ \`m vista status --engine ydb --transport local\`: running + healthy (the status chip's probe)"
+else
+  fail "G18: the extension's engine-status probe is not healthy (rc=$G18_RC)"$'\n'"$(printf '%s' "$G18_OUT" | tail -15)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc
