@@ -39,6 +39,8 @@
 #   YottaDB    r2.06 (explicit positional pin — never "latest")
 #   code-server v4.130.0 (base VS Code 1.130.0 >= m-vscode ^1.125.0), amd64 .deb
 #              sha256 2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
+#   code-runner formulahendry.code-runner v0.12.2 (Open VSX .vsix)
+#              sha256 99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe
 #   FileMan    WorldVistA/VistA-VEHU-M @ 62622e63fc7dffad27fc79f107fd7689c2ac4eff
 #              (Packages/VA FileMan/Routines) — the pin lives in
 #              vista-fileman/scripts/seed/source.pin and every routine byte is
@@ -271,26 +273,35 @@ COPY m-vscode/m-vscode.vsix /opt/m-vscode/m-vscode.vsix
 # fetches nothing). base VS Code 1.130.0 satisfies m-vscode's ^1.125.0 engine.
 # Late layer: it does not invalidate the expensive P2 bake (FileMan, m lib).
 COPY code-server.deb /tmp/code-server.deb
+COPY code-runner.vsix /opt/code-runner/code-runner.vsix
 RUN set -e; \
     echo "2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851  /tmp/code-server.deb" | sha256sum -c -; \
+    echo "99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe  /opt/code-runner/code-runner.vsix" | sha256sum -c -; \
     apt-get update; \
     apt-get install -y --no-install-recommends /tmp/code-server.deb; \
     rm -f /tmp/code-server.deb; \
     rm -rf /var/lib/apt/lists/*; \
-    # Bake the m-vscode extension into a read-only extensions dir, OFFLINE from \
-    # the local .vsix (no Open VSX) — the offline half of PR-23. Fail the build \
-    # if it did not land (bytes-present != installed). \
+    # Bake BOTH extensions into a read-only extensions dir, OFFLINE from the \
+    # local .vsix files (no Open VSX at runtime) — the offline half of PR-23/PR-26. \
+    # Fail the build if either did not land (bytes-present != installed). \
     mkdir -p /opt/code-server/extensions; \
     code-server --install-extension /opt/m-vscode/m-vscode.vsix \
-      --extensions-dir /opt/code-server/extensions \
-      --user-data-dir /tmp/cs-build; \
+      --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
+    code-server --install-extension /opt/code-runner/code-runner.vsix \
+      --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
     code-server --list-extensions --extensions-dir /opt/code-server/extensions \
       | grep -qi 'vista-forge.m-vscode'; \
+    code-server --list-extensions --extensions-dir /opt/code-server/extensions \
+      | grep -qi 'formulahendry.code-runner'; \
     rm -rf /tmp/cs-build; \
     # gid-0 writable so an arbitrary uid (PR-6) can update code-server state. \
     chgrp -R 0 /opt/code-server; chmod -R g=u /opt/code-server
-# --chmod so the launch script is executable regardless of the source file mode
-# or a mode-only cache hit (a bare COPY keys on content, not the +x bit).
+# The m-run helper Code Runner calls for `.m` files, and the baked default
+# settings that wire Code Runner's executor to it (PR-26). --chmod so scripts are
+# executable regardless of source mode / a mode-only cache hit (COPY keys on
+# content, not the +x bit).
+COPY --chmod=0755 m-run.sh /usr/local/bin/m-run
+COPY code-server-defaults-settings.json /opt/code-server/defaults/settings.json
 COPY --chmod=0755 code-server-launch.sh /usr/local/bin/devbox-code-server
 EXPOSE 8080
 

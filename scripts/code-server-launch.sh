@@ -18,7 +18,14 @@ set -eu
 
 STATE="${CODE_SERVER_STATE:-/tmp/code-server}"
 PORT="${CODE_SERVER_PORT:-8080}"
-mkdir -p "$STATE/user-data"
+mkdir -p "$STATE/user-data/User"
+
+# Seed the baked default settings (Code Runner's `.m` executor -> m-run, PR-26)
+# the first time only, so a user's own edits survive if they mount a persistent
+# user-data volume. /tmp is ephemeral, so a fresh container re-seeds the defaults.
+if [ ! -f "$STATE/user-data/User/settings.json" ] && [ -f /opt/code-server/defaults/settings.json ]; then
+  cp /opt/code-server/defaults/settings.json "$STATE/user-data/User/settings.json"
+fi
 
 # --auth none: a local dev box; the README binds the port to 127.0.0.1 only.
 exec code-server \

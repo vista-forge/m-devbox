@@ -90,5 +90,28 @@ done
   fi
 }
 
+# ── Code Runner pin (PR-26): version + .vsix sha256 across the same three places
+hdr_cr_ver="$(sed -n 's/^#.*code-runner formulahendry.code-runner v\([0-9.]*\).*/\1/p' "$DF" | head -1)"
+hdr_cr_sha="$(grep -A1 'code-runner formulahendry' "$DF" | sed -n 's/^#.*sha256 \([0-9a-f]\{64\}\).*/\1/p' | head -1)"
+run_cr_sha="$(sed -n 's/^ *echo "\([0-9a-f]\{64\}\) .*code-runner.vsix.*/\1/p' "$DF" | head -1)"
+sc_cr_ver="$(sed -n 's/^CODE_RUNNER_VERSION=\([0-9.]*\)/\1/p' "$SC")"
+sc_cr_sha="$(sed -n 's/^CODE_RUNNER_VSIX_SHA256=\([0-9a-f]\{64\}\)/\1/p' "$SC")"
+
+for v in hdr_cr_ver hdr_cr_sha run_cr_sha sc_cr_ver sc_cr_sha; do
+  [ -n "${!v}" ] || bad "could not extract '$v' — the gate cannot see what it is comparing (fix the extractor, do not delete the check)"
+done
+[ -n "$hdr_cr_ver" ] && [ -n "$sc_cr_ver" ] && {
+  [ "$hdr_cr_ver" = "$sc_cr_ver" ] \
+    && ok "Code Runner version pin agrees (v$hdr_cr_ver)" \
+    || bad "Code Runner VERSION drift — header v$hdr_cr_ver vs stage-context.sh $sc_cr_ver"
+}
+[ -n "$hdr_cr_sha" ] && [ -n "$sc_cr_sha" ] && [ -n "$run_cr_sha" ] && {
+  if [ "$hdr_cr_sha" = "$sc_cr_sha" ] && [ "$hdr_cr_sha" = "$run_cr_sha" ]; then
+    ok "Code Runner .vsix sha256 agrees across header, in-build sha256sum -c, and stage-context.sh"
+  else
+    bad "Code Runner SHA256 drift — header=$hdr_cr_sha in-build=$run_cr_sha stage-context=$sc_cr_sha"
+  fi
+}
+
 [ $rc -eq 0 ] && echo "check-pins: OK"
 exit $rc

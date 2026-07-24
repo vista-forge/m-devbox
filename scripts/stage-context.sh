@@ -49,10 +49,18 @@ CODE_SERVER_VERSION=4.130.0
 CODE_SERVER_DEB_SHA256=2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
 CODE_SERVER_URL="https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_amd64.deb"
 
+# Code Runner (formulahendry.code-runner) from Open VSX — baked + configured to
+# run `.m` routines via the m-run helper (PR-26). Pinned .vsix, installed offline.
+CODE_RUNNER_VERSION=0.12.2
+CODE_RUNNER_VSIX_SHA256=99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe
+CODE_RUNNER_URL="https://open-vsx.org/api/formulahendry/code-runner/${CODE_RUNNER_VERSION}/file/formulahendry.code-runner-${CODE_RUNNER_VERSION}.vsix"
+
 mkdir -p "$CTX"
 cp "$REPO/Dockerfile"           "$CTX/"
 cp "$HERE/entrypoint.sh"        "$CTX/"
 cp "$HERE/code-server-launch.sh" "$CTX/"
+cp "$HERE/m-run.sh"              "$CTX/"
+cp "$HERE/code-server-defaults-settings.json" "$CTX/"
 
 # ── pinned ydbinstall.sh (cache-friendly: fetch only when absent/mismatched) ─
 if ! echo "${YDBINSTALL_SHA256}  ${CTX}/ydbinstall.sh" | sha256sum -c - >/dev/null 2>&1; then
@@ -73,6 +81,16 @@ if ! echo "${CODE_SERVER_DEB_SHA256}  ${CS_DEB}" | sha256sum -c - >/dev/null 2>&
   echo "${CODE_SERVER_DEB_SHA256}  ${CS_DEB}" | sha256sum -c -
 fi
 cp "$CS_DEB" "$CTX/code-server.deb"
+
+# ── pinned Code Runner .vsix (PR-26) — cached + checksum-verified, installed
+#    offline from the local file (same pattern as m-vscode's .vsix). ───────────
+CR_VSIX="$CS_CACHE/formulahendry.code-runner_${CODE_RUNNER_VERSION}.vsix"
+if ! echo "${CODE_RUNNER_VSIX_SHA256}  ${CR_VSIX}" | sha256sum -c - >/dev/null 2>&1; then
+  echo "stage: fetching Code Runner ${CODE_RUNNER_VERSION} (sync-time, pinned, Open VSX)"
+  wget -q -O "$CR_VSIX" "$CODE_RUNNER_URL"
+  echo "${CODE_RUNNER_VSIX_SHA256}  ${CR_VSIX}" | sha256sum -c -
+fi
+cp "$CR_VSIX" "$CTX/code-runner.vsix"
 
 # ── toolchain binaries, rebuilt from the local checkouts ────────────────────
 ( cd "$FORGE/m-cli" && go build -o "$CTX/m" . )

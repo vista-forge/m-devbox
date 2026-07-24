@@ -1,0 +1,9 @@
+{
+  "code-runner.executorMap": {
+    "mumps": "m-run $fullFileName"
+  },
+  "code-runner.executorMapByFileExtension": {
+    ".m": "m-run $fullFileName"
+  },
+  "code-runner.runInTerminal": true
+}

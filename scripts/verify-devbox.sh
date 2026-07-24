@@ -398,5 +398,30 @@ else
   fail "G18: the extension's engine-status probe is not healthy (rc=$G18_RC)"$'\n'"$(printf '%s' "$G18_OUT" | tail -15)"
 fi
 
+echo "== G19: Code Runner baked + the .m executor runs a routine (PR-26) =="
+# Code Runner is installed offline, its `.m` executor is wired to m-run in the
+# baked defaults, and m-run actually executes an M routine on the local engine.
+G19_OUT="$(timeout 90 docker run --rm "$IMG" bash -c '
+set -e
+code-server --list-extensions --extensions-dir /opt/code-server/extensions | grep -qi "formulahendry.code-runner" && echo CR_OK || { echo CR_MISSING; exit 1; }
+grep -q "m-run" /opt/code-server/defaults/settings.json && echo CFG_OK || { echo CFG_MISSING; exit 1; }
+mkdir -p /tmp/g19
+cat > /tmp/g19/G19RUN.m <<XEOF
+G19RUN ;
+ write "G19-RUN-OK",!
+ quit
+XEOF
+out="$(m-run /tmp/g19/G19RUN.m 2>&1)"
+echo "$out" | grep -q G19-RUN-OK && echo RUN_OK || { echo "RUN_FAIL: $out"; exit 1; }
+' 2>&1)"; G19_RC=$?
+if [ "$G19_RC" -eq 0 ] \
+   && printf '%s' "$G19_OUT" | grep -q CR_OK \
+   && printf '%s' "$G19_OUT" | grep -q CFG_OK \
+   && printf '%s' "$G19_OUT" | grep -q RUN_OK; then
+  echo "  ✓ Code Runner baked + \`.m\` executor → m-run runs a routine (G19-RUN-OK)"
+else
+  fail "G19: Code Runner / m-run check failed (rc=$G19_RC)"$'\n'"$(printf '%s' "$G19_OUT" | tail -15)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc

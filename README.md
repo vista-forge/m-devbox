@@ -34,9 +34,18 @@ make load      # zstd -dc ~/data/vista-forge/images/... | docker load
 The devbox ships **code-server** — VS Code in the image, served to a browser.
 There is no desktop VS Code app to install and no client↔server version to keep
 in sync: code-server ships its own matched web client, so you can update your
-own VS Code as often as you like and nothing here breaks (MD-D8). The m-vscode
-extension is **baked in** (installed from the local `.vsix` at build time), so
-the first open works fully offline — no download.
+own VS Code as often as you like and nothing here breaks (MD-D8). Two extensions
+are **baked in** (installed from local `.vsix` files at build time, so the first
+open works fully offline — no download): **m-vscode** (M language tools) and
+**Code Runner**, pre-configured to run `.m` routines.
+
+**Running M code.** With a `.m` file open, hit *Run Code* (the ▷ button, or
+`Ctrl+Alt+N`) — Code Runner's `.m` executor is wired to the baked `m-run` helper,
+which adds the file's directory to `$ydb_routines`, links it on the local
+YottaDB, and executes the routine's top label (`do ^<name>`), printing its
+output. (So `/work` must be writable — YDB writes the `.o` object beside the
+`.m`.) The Test Explorer (m-vscode) runs `*TST.m` suites; Code Runner runs a
+routine.
 
 ```bash
 # serve the IDE on localhost only; mount your project at /work
