@@ -11,7 +11,8 @@ resident and callable on the live engine.
 
 | File | What it is |
 |---|---|
-| `src/HELLO.m` | the routine — `$$greet` (MSL `STDSTR`) and `$$fmDate` (FSL `FSLDATE`) |
+| `src/HELLO.m` | the library routine — `$$greet` (MSL `STDSTR`) and `$$fmDate` (FSL `FSLDATE`); its top label just `quit`s |
+| `src/DEMO.m` | a **runnable** routine — its top label calls HELLO's extrinsics and writes output, so **Run Code** prints something |
 | `tests/HELLOTST.m` | the `STDASSERT` suite that exercises both |
 | `.m-cli.toml` | modern (pythonic-lower) lint profile |
 
@@ -26,6 +27,12 @@ m test --engine ydb tests
 
 You should see the suite pass. That is the whole acceptance seed: a stranger,
 one command, a green `m test` on a project that touches `STD*` and `FSL*`.
+
+**Run vs. test.** `m test` runs the `*TST.m` suites. To *run* a routine in the
+editor, open `src/DEMO.m` and hit **Run Code** (▷, or `Ctrl+Alt+N`) — Code Runner
+executes its top label (`do ^DEMO`) and prints the greeting. `HELLO` is a library
+(its top label just quits), so "Run" on it correctly prints nothing; call its
+extrinsics instead, e.g. `write $$greet^HELLO("world")`.
 
 ## Make it yours
 
