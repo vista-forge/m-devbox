@@ -146,6 +146,10 @@ cp -r "$VF/src"     "$CTX/fileman/src"
 # ── examples/hello (MD-D2 starter project — copied from this repo) ───────────
 rm -rf "$CTX/examples"
 cp -r "$REPO/examples" "$CTX/examples"
+# Drop any stray compiled objects a dev's local run left beside the .m, so the
+# image is deterministic (built from source, not from whatever .o was lying
+# around) — [[tests-and-product-built-differently]].
+find "$CTX/examples" -name '*.o' -delete
 
 # ── m-vscode: the baked .vsix (MD-D5) — installed from file at attach ─────────
 # Single-sourced from the m-vscode repo (its committed .vsix at repo root). The

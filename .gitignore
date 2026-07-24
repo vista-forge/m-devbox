@@ -7,6 +7,10 @@
 # Measurement scratch
 *.log
 
+# Compiled M routine objects (regenerable; YDB writes them beside the .m, e.g.
+# when m-run links a routine). Never committed, never staged into the image.
+*.o
+
 # Claude Code
 .claude/settings.local.json
 
