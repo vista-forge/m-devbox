@@ -41,8 +41,13 @@ the first open works fully offline — no download.
 ```bash
 # serve the IDE on localhost only; mount your project at /work
 docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
-# then open http://localhost:8080  → editor + terminal + `m test`, offline
+# then open http://127.0.0.1:8080  → editor + terminal + `m test`, offline
 ```
+
+Use **`http://127.0.0.1:8080`**, not `http://localhost:8080`: the port is
+published on IPv4 loopback only, and `localhost` often resolves to IPv6 (`::1`)
+first — which has no listener, so the browser shows `ERR_CONNECTION_REFUSED`
+even though code-server is serving fine.
 
 Bind to `127.0.0.1` (as above): code-server runs with `--auth none` for a
 zero-friction local box, so do not expose the port to a network.
