@@ -37,6 +37,8 @@
 #   ydbinstall gitlab.com/YottaDB/DB/YDB @ ab1d352b1a73b8945055337cd4b2b9da07ef73c5, sr_unix/ydbinstall.sh
 #              sha256 ff106cae18a69702eec8a196310116958a5d6e1e36b47ac87fb4a4fa6192f05c
 #   YottaDB    r2.06 (explicit positional pin — never "latest")
+#   code-server v4.130.0 (base VS Code 1.130.0 >= m-vscode ^1.125.0), amd64 .deb
+#              sha256 2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
 #   FileMan    WorldVistA/VistA-VEHU-M @ 62622e63fc7dffad27fc79f107fd7689c2ac4eff
 #              (Packages/VA FileMan/Routines) — the pin lives in
 #              vista-fileman/scripts/seed/source.pin and every routine byte is
@@ -260,6 +262,38 @@ COPY entrypoint.sh /usr/local/bin/devbox-entrypoint
 # baked bytes against that source .vsix. Late COPY — the bake layers stay cached.
 COPY m-vscode/m-vscode.vsix /opt/m-vscode/m-vscode.vsix
 
+# ── code-server: the offline VS Code server (PR-23 / MD-D8) ──────────────────
+# The devbox's interaction model is a browser, not a desktop VS Code attach:
+# code-server ships its own matched web client, so a user can update their
+# desktop VS Code freely with no client<->server version handshake to break
+# (MD-D8). The pinned .deb is staged + checksum-verified by stage-context.sh;
+# the Dockerfile only COPYs, RE-verifies, and installs (PR-4: the Dockerfile
+# fetches nothing). base VS Code 1.130.0 satisfies m-vscode's ^1.125.0 engine.
+# Late layer: it does not invalidate the expensive P2 bake (FileMan, m lib).
+COPY code-server.deb /tmp/code-server.deb
+RUN set -e; \
+    echo "2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851  /tmp/code-server.deb" | sha256sum -c -; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends /tmp/code-server.deb; \
+    rm -f /tmp/code-server.deb; \
+    rm -rf /var/lib/apt/lists/*; \
+    # Bake the m-vscode extension into a read-only extensions dir, OFFLINE from \
+    # the local .vsix (no Open VSX) — the offline half of PR-23. Fail the build \
+    # if it did not land (bytes-present != installed). \
+    mkdir -p /opt/code-server/extensions; \
+    code-server --install-extension /opt/m-vscode/m-vscode.vsix \
+      --extensions-dir /opt/code-server/extensions \
+      --user-data-dir /tmp/cs-build; \
+    code-server --list-extensions --extensions-dir /opt/code-server/extensions \
+      | grep -qi 'vista-forge.m-vscode'; \
+    rm -rf /tmp/cs-build; \
+    # gid-0 writable so an arbitrary uid (PR-6) can update code-server state. \
+    chgrp -R 0 /opt/code-server; chmod -R g=u /opt/code-server
+# --chmod so the launch script is executable regardless of the source file mode
+# or a mode-only cache hit (a bare COPY keys on content, not the +x bit).
+COPY --chmod=0755 code-server-launch.sh /usr/local/bin/devbox-code-server
+EXPOSE 8080
+
 # Engine SELECTOR baked as image ENV (PR-11; engine-selection-on-attach ADR).
 # The ydb_* ENVs above are engine INTERIORS; M_ENGINE is the SELECTOR that tells
 # `m` WHICH engine to run — distinct concepts (ADR §2), and a selector is legal
@@ -274,4 +308,8 @@ ENV M_ENGINE=ydb
 
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
-CMD ["tail", "-f", "/dev/null"]
+# Default command: serve code-server (PR-23 / MD-D8). This is only the DEFAULT —
+# `docker run <image> m test …` overrides it, so every headless gate still runs
+# (verify-devbox.sh G1–G16). A devcontainer attach overrides it too (the
+# .devcontainer keep-alive), so the secondary desktop path keeps working.
+CMD ["/usr/local/bin/devbox-code-server"]

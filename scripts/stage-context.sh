@@ -43,15 +43,36 @@ YDB_COMMIT=ab1d352b1a73b8945055337cd4b2b9da07ef73c5
 YDBINSTALL_SHA256=ff106cae18a69702eec8a196310116958a5d6e1e36b47ac87fb4a4fa6192f05c
 YDBINSTALL_URL="https://gitlab.com/YottaDB/DB/YDB/-/raw/${YDB_COMMIT}/sr_unix/ydbinstall.sh"
 
+# code-server — the offline VS Code server (PR-23 / MD-D8). Pinned .deb, base
+# VS Code 1.130.0 (>= m-vscode's ^1.125.0 engine, so the .vsix activates as-is).
+CODE_SERVER_VERSION=4.130.0
+CODE_SERVER_DEB_SHA256=2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
+CODE_SERVER_URL="https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_amd64.deb"
+
 mkdir -p "$CTX"
-cp "$REPO/Dockerfile"      "$CTX/"
-cp "$HERE/entrypoint.sh"   "$CTX/"
+cp "$REPO/Dockerfile"           "$CTX/"
+cp "$HERE/entrypoint.sh"        "$CTX/"
+cp "$HERE/code-server-launch.sh" "$CTX/"
 
 # ── pinned ydbinstall.sh (cache-friendly: fetch only when absent/mismatched) ─
 if ! echo "${YDBINSTALL_SHA256}  ${CTX}/ydbinstall.sh" | sha256sum -c - >/dev/null 2>&1; then
   wget -q -O "${CTX}/ydbinstall.sh" "${YDBINSTALL_URL}"
   echo "${YDBINSTALL_SHA256}  ${CTX}/ydbinstall.sh" | sha256sum -c -
 fi
+
+# ── pinned code-server .deb (PR-23) — cached in a persistent dir (195 MB, so
+#    never re-fetched once its sha matches), then copied into the context. The
+#    Dockerfile re-verifies the sha in-build (PR-4: the Dockerfile fetches
+#    nothing; it COPYs a checksum-verified artifact from the context). ─────────
+CS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/m-devbox"
+CS_DEB="$CS_CACHE/code-server_${CODE_SERVER_VERSION}_amd64.deb"
+mkdir -p "$CS_CACHE"
+if ! echo "${CODE_SERVER_DEB_SHA256}  ${CS_DEB}" | sha256sum -c - >/dev/null 2>&1; then
+  echo "stage: fetching code-server ${CODE_SERVER_VERSION} (sync-time, pinned)"
+  wget -q -O "$CS_DEB" "$CODE_SERVER_URL"
+  echo "${CODE_SERVER_DEB_SHA256}  ${CS_DEB}" | sha256sum -c -
+fi
+cp "$CS_DEB" "$CTX/code-server.deb"
 
 # ── toolchain binaries, rebuilt from the local checkouts ────────────────────
 ( cd "$FORGE/m-cli" && go build -o "$CTX/m" . )

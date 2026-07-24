@@ -361,5 +361,28 @@ else
   fail "G16: bare \`m test\` under --read-only expected exit 0 / >=5 passed / 0 failed, got rc=$G16_RC passed=$G16_P failed=$G16_F"$'\n'"$(printf '%s' "$G16_OUT" | tail -25)"
 fi
 
+echo "== G17: PR-23 — code-server boots OFFLINE and the m-vscode extension is baked =="
+# The whole point of MD-D8: the VS Code server is IN the image, so the first
+# open works with no network, and the extension was installed from the local
+# .vsix at build time (no Open VSX). Prove both under --network none.
+G17_OUT="$(timeout 150 docker run --rm --network none "$IMG" bash -c '
+  set -e
+  # (a) the extension is baked into the read-only extensions dir (offline install)
+  if code-server --list-extensions --extensions-dir /opt/code-server/extensions | grep -qi "vista-forge.m-vscode"; then
+    echo "EXT_OK"
+  else
+    echo "EXT_MISSING"; exit 1
+  fi
+  # (b) code-server binds its HTTP server with NO network (loopback only)
+  CODE_SERVER_STATE=/tmp/cs /usr/local/bin/devbox-code-server >/tmp/cs.log 2>&1 &
+  for i in $(seq 1 60); do grep -qiE "listening on|HTTP server listening" /tmp/cs.log && break; sleep 1; done
+  if grep -qiE "listening on|HTTP server listening" /tmp/cs.log; then echo "BOOT_OK"; else echo "BOOT_FAIL"; tail -25 /tmp/cs.log; exit 1; fi
+' 2>&1)"; G17_RC=$?
+if [ "$G17_RC" -eq 0 ] && printf '%s' "$G17_OUT" | grep -q EXT_OK && printf '%s' "$G17_OUT" | grep -q BOOT_OK; then
+  echo "  ✓ code-server binds under --network none and the m-vscode extension is baked (offline VS Code, no download)"
+else
+  fail "G17: code-server offline boot / baked-extension check failed (rc=$G17_RC)"$'\n'"$(printf '%s' "$G17_OUT" | tail -25)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc

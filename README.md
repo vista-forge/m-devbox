@@ -29,7 +29,28 @@ If the image is missing but the org archive is present, restore it offline:
 make load      # zstd -dc ~/data/vista-forge/images/... | docker load
 ```
 
-## Using the image
+## Opening the IDE (code-server)
+
+The devbox ships **code-server** — VS Code in the image, served to a browser.
+There is no desktop VS Code app to install and no client↔server version to keep
+in sync: code-server ships its own matched web client, so you can update your
+own VS Code as often as you like and nothing here breaks (MD-D8). The m-vscode
+extension is **baked in** (installed from the local `.vsix` at build time), so
+the first open works fully offline — no download.
+
+```bash
+# serve the IDE on localhost only; mount your project at /work
+docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
+# then open http://localhost:8080  → editor + terminal + `m test`, offline
+```
+
+Bind to `127.0.0.1` (as above): code-server runs with `--auth none` for a
+zero-friction local box, so do not expose the port to a network.
+
+## Using the image headlessly
+
+The IDE is only the default command — pass your own and it runs headless (this
+is how every gate runs):
 
 ```bash
 # a known-answer digest through the driver seam, on a bare `docker run`
