@@ -387,9 +387,10 @@ fi
 
 echo "== G18: the m-vscode status probe is healthy over local (PR-23) =="
 # The extension's status chip runs exactly this (m-vscode argv.ts, ydb + no
-# container -> --transport local). If it defaulted to the driver's REMOTE
-# transport it would fail "remote transport needs a host" — the devbox must
-# answer the chip's probe out of the box.
+# container -> --transport local). Retained as the EXPLICIT-FLAG control for
+# G20: it proves the override path still wins after the transport default was
+# removed. (Historic note: the "driver's REMOTE default" this once blamed was
+# never the driver's — it was m-cli's own kong default. See G20.)
 G18_OUT="$(timeout 60 docker run --rm "$IMG" m vista status --engine ydb --transport local -o json 2>&1)"; G18_RC=$?
 if [ "$G18_RC" -eq 0 ] \
    && printf '%s' "$G18_OUT" | grep -qE '"running":[[:space:]]*true' \
@@ -422,6 +423,37 @@ if [ "$G19_RC" -eq 0 ] \
   echo "  ✓ Code Runner baked + \`.m\` executor → m-run runs a routine (G19-RUN-OK)"
 else
   fail "G19: Code Runner / m-run check failed (rc=$G19_RC)"$'\n'"$(printf '%s' "$G19_OUT" | tail -15)"
+fi
+
+echo "== G20: a FLAG-LESS \`m vista status\` resolves local (PR-25 residual) =="
+# The residual PR-25 closed: a bare terminal `m vista` in this image, with NO
+# --transport, must reach the engine sitting right beside it. m-cli no longer
+# fabricates a transport the operator never expressed; it omits the flag and the
+# DRIVER resolves it below the seam (m-ydb defaults local).
+# Ruling: docs/background/transport-resolution-on-invoke-adr.md §5.
+#
+# Asserting "transport":"local" in the payload — the value the DRIVER reports —
+# is what makes this a delegation gate and not merely a re-hardcoded default:
+# only the driver can put that field there (ADR D5).
+G20_OUT="$(timeout 60 docker run --rm "$IMG" m vista status --engine ydb -o json 2>&1)"; G20_RC=$?
+if [ "$G20_RC" -eq 0 ] \
+   && printf '%s' "$G20_OUT" | grep -qE '"running":[[:space:]]*true' \
+   && printf '%s' "$G20_OUT" | grep -qE '"healthy":[[:space:]]*true' \
+   && printf '%s' "$G20_OUT" | grep -qE '"transport":[[:space:]]*"local"'; then
+  echo "  ✓ \`m vista status --engine ydb\` (no --transport): running + healthy, driver-resolved transport=local"
+else
+  fail "G20: the flag-less vista probe did not resolve local (rc=$G20_RC)"$'\n'"$(printf '%s' "$G20_OUT" | tail -15)"
+fi
+
+# Negative control for the ownership boundary (ADR D3): M_<ENGINE>_TRANSPORT
+# governs the FORWARDING verbs and deliberately NOT the orchestrating ones —
+# `m test` pins its own transport because its staging lifecycle branches on it.
+# Without this control, a re-hardcoded local in m-cli would pass G20 unnoticed.
+G20B_OUT="$(timeout 60 docker run --rm -e M_YDB_TRANSPORT=remote "$IMG" m vista status --engine ydb -o json 2>&1)"; G20B_RC=$?
+if [ "$G20B_RC" -ne 0 ] && printf '%s' "$G20B_OUT" | grep -qi 'remote transport needs a host'; then
+  echo "  ✓ negative control: M_YDB_TRANSPORT=remote IS honored by the forwarding verb (delegation is real, not a hardcoded local)"
+else
+  fail "G20b: M_YDB_TRANSPORT=remote was ignored by \`m vista status\` — m-cli is still fabricating a transport (rc=$G20B_RC)"$'\n'"$(printf '%s' "$G20B_OUT" | tail -15)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
