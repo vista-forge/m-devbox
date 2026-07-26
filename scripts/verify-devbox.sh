@@ -80,6 +80,12 @@
 #       where it started — twice, from a fresh container each time. Its negative
 #       control asserts the demo library is NOT resident in a fresh image, so a
 #       green tour cannot be a no-op.
+#   G23 The IDE opens TRUSTED. VS Code disables any extension lacking
+#       `capabilities.untrustedWorkspaces` in Restricted Mode — which is BOTH
+#       baked extensions — so "installed" (G17/G19) was never "running".
+#       Gates the wiring: the launch flag, its continued existence in the
+#       pinned code-server, and the settings fallback. Activation itself is a
+#       browser proof, recorded in the tracker — a green G23 is not that.
 #   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
@@ -587,6 +593,63 @@ if [ "$G22R_RC" -eq 0 ] && printf '%s' "$G22R_OUT" | grep -q TOUR-OK; then
   echo "  ✓ repeatable: a second full round trip in a fresh container is green too"
 else
   fail "G22 repeat: the second tour run failed (rc=$G22R_RC)"$'\n'"$(printf '%s' "$G22R_OUT" | tail -25)"
+fi
+
+echo "== G23: the IDE opens TRUSTED — baked extensions are not disabled by Restricted Mode =="
+# WHY THIS EXISTS. G17/G19 prove the extensions are installed (bytes on disk,
+# `--list-extensions` names them). They do NOT prove either one ever RUNS, and
+# for 2 days they did not: VS Code opens any unknown folder/workspace in
+# **Restricted Mode**, and an extension without
+# `capabilities.untrustedWorkspaces` is DISABLED there — which is BOTH of ours.
+# Measured 2026-07-26 in a real browser session against the image: banner
+# "Some features are disabled because this workspace is not trusted", on the
+# workspace path AND the plain-folder path. Classic bytes-present ≠ works
+# [[verify-implementation-not-manifest]].
+#
+# HONEST SCOPE: this gate proves the WIRING (the flag is passed, this
+# code-server build still accepts it, the settings carry the fallback) — it
+# cannot drive a browser, so it cannot by itself prove activation. The
+# end-to-end activation proof is a browser session, recorded dated in the
+# tracker. Do not read a green G23 as "the extensions ran".
+G23_FLAG_OK=0
+grep -q -- '--disable-workspace-trust' "$HERE/code-server-launch.sh" && G23_FLAG_OK=1
+if [ "$G23_FLAG_OK" -eq 1 ]; then
+  echo "  ✓ the launch script passes --disable-workspace-trust"
+else
+  fail "G23: code-server-launch.sh does not pass --disable-workspace-trust — every new user lands in Restricted Mode with both extensions disabled"
+fi
+# The flag must still EXIST in the pinned code-server. A version bump that
+# renames or drops it would otherwise leave the launch line silently inert
+# (code-server ignores unknown flags for some, errors for others — either way
+# the trust regression returns without a red).
+G23_HELP="$(timeout 60 docker run --rm "$IMG" code-server --help 2>&1)"
+if printf '%s' "$G23_HELP" | grep -q -- '--disable-workspace-trust'; then
+  echo "  ✓ the pinned code-server still supports --disable-workspace-trust"
+else
+  fail "G23: this code-server build does not list --disable-workspace-trust — the launch flag is inert and Restricted Mode is back"
+fi
+# Belt-and-braces in the baked user settings, so a user launching code-server
+# by hand (without the image's launch script) still gets a trusting IDE, and so
+# the IDE stops querying Open VSX at runtime (measured: the browser session hit
+# open-vsx.org for extension metadata, 404 — a network call in an offline box).
+G23_SET="$(timeout 60 docker run --rm "$IMG" cat /opt/code-server/defaults/settings.json 2>&1)"
+G23_SET_OUT="$(printf '%s' "$G23_SET" | python3 -c '
+import json, sys
+cfg = json.load(sys.stdin)
+bad = []
+if cfg.get("security.workspace.trust.enabled") is not False:
+    bad.append("security.workspace.trust.enabled is not false")
+for k in ("extensions.autoCheckUpdates", "extensions.autoUpdate"):
+    if cfg.get(k) is not False:
+        bad.append(k + " is not false (runtime Open VSX query in an offline image)")
+if not cfg.get("code-runner.executorMapByFileExtension", {}).get(".m"):
+    bad.append("code-runner .m executor missing")
+print("SETTINGS_BAD " + "; ".join(bad)) if bad else print("SETTINGS_OK")
+sys.exit(1 if bad else 0)' 2>&1)"; G23_SET_RC=$?
+if [ "$G23_SET_RC" -eq 0 ] && printf '%s' "$G23_SET_OUT" | grep -q SETTINGS_OK; then
+  echo "  ✓ baked settings: trust disabled, no runtime marketplace queries, .m executor wired"
+else
+  fail "G23: baked default settings (rc=$G23_SET_RC)"$'\n'"$(printf '%s' "$G23_SET_OUT" | tail -5)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

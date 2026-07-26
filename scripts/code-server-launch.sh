@@ -35,9 +35,20 @@ WORKSPACE="${CODE_SERVER_WORKSPACE:-/opt/code-server/devbox.code-workspace}"
 [ -f "$WORKSPACE" ] || WORKSPACE=/work
 
 # --auth none: a local dev box; the README binds the port to 127.0.0.1 only.
+#
+# --disable-workspace-trust is LOAD-BEARING, not cosmetic. VS Code opens any
+# unknown folder/workspace in **Restricted Mode**, and an extension that does
+# not declare `capabilities.untrustedWorkspaces` is DISABLED there — which is
+# both of ours (m-vscode and Code Runner). Measured 2026-07-26 in a real
+# browser session: the IDE came up with "Some features are disabled because
+# this workspace is not trusted" and neither extension ran, on the workspace
+# path AND on the plain-folder path. Trust prompts buy nothing here — this is a
+# single-user dev container and the user mounted their own code deliberately —
+# so the image resolves it rather than making every new user click through it.
 exec code-server \
   --bind-addr "0.0.0.0:${PORT}" \
   --auth none \
+  --disable-workspace-trust \
   --disable-telemetry \
   --disable-update-check \
   --user-data-dir "$STATE/user-data" \
