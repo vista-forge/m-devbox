@@ -27,6 +27,13 @@ repo** and assembled into an ephemeral build context by
 fixed in `m-stdlib`; if `m` needs a fix, it is fixed in `m-cli`; then restage
 and rebuild. A second copy of anything in this repo is a defect.
 
+That rule covers **documentation too**. The image ships MSL/FSL source + docs
+for reading (`/opt/msl`, `/opt/fsl`, MD-D9), and every byte of it is staged
+from `m-stdlib` / `f-stdlib` at build time — never committed here. Verify G21
+proves the three-way identity (home repo == baked tree == routine resident on
+the engine), so a stale tree reds instead of quietly teaching code nobody runs.
+Fix a library's docs in its own repo and rebuild.
+
 Corollary — **always restage before building**. `docker build` off a stale
 context silently produces a different program than the one you tested; that is
 [[tests-and-product-built-differently]], which has already cost this org a
@@ -84,7 +91,7 @@ not an image tweak.
 | `arch-check` | `m arch check` — waterline + `repo.meta.json` shape |
 | `docs-gate` | link + layout |
 | `shell-gate` | `bash -n` / `sh -n` floor on every shipped script, plus shellcheck when installed |
-| `verify` | the acceptance battery G1–G12 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2) |
+| `verify` | the acceptance battery G1–G22 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2; G21 library reading trees + G22 the `lib-demo` round trip — MD-D9) |
 
 `make sweep` (the full MSL suite run) is a **measurement, not a gate** — 11
 suites in `STDS3MINIOTST` fail without a MinIO service, so it can never be

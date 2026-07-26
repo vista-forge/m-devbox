@@ -1,0 +1,8 @@
+{
+  "stdlib_version": "0.1.0",
+  "modules": {
+    "GREETER": {
+      "synopsis": "lib-demo — the smallest installable library: one greeting function, built on MSL."
+    }
+  }
+}

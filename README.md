@@ -39,6 +39,23 @@ are **baked in** (installed from local `.vsix` files at build time, so the first
 open works fully offline — no download): **m-vscode** (M language tools) and
 **Code Runner**, pre-configured to run `.m` routines.
 
+**What you see when it opens.** code-server opens a multi-root workspace with
+your own code first and the libraries beside it:
+
+| Folder | What it is |
+|---|---|
+| `work` | whatever you mounted at `/work` — your code |
+| `examples` | `hello` (the starter) and `lib-demo` (installing libraries) |
+| `MSL` | the M Standard Library: source, per-module reference, user guides |
+| `FSL` | the FileMan Standard Library: source, per-module reference |
+
+So the library you are calling is one click away — read `MSL/src/STDJSON.m`
+next to `MSL/docs/modules/stdjson.md` while you write against it. Those trees
+are for **reading**: the routines that actually run were installed onto the
+engine by `m lib` at build time (`/opt/lib/r`), and the gate proves the two are
+byte-identical, so what you read is what you run. Edits belong in the library's
+home repo — `m-stdlib` / `f-stdlib` — and reach the image on the next build.
+
 **Running M code.** With a `.m` file open, hit *Run Code* (the ▷ button, or
 `Ctrl+Alt+N`) — Code Runner's `.m` executor is wired to the baked `m-run` helper,
 which adds the file's directory to `$ydb_routines`, links it on the local
@@ -137,7 +154,24 @@ VS Code Dev Containers the ordinary path is `remoteUser: devbox` with
 | YottaDB r2.06 | installed in-build by the project's own `ydbinstall.sh`, pinned by commit + `sha256sum -c` |
 | 5 native callouts (`std_compress`, `std_crypto`, `std_csprng`, `std_fs`, `std_http`) | compiled during `docker build` by a throwaway gcc stage running `m callouts install`; no compiler ships in the final image |
 | `m` + `m-ydb` | rebuilt from the local checkouts at stage time |
-| MSL (source + suites) | copied from `m-stdlib` at stage time |
+| MSL + FSL, installed | `m lib install` at build time — durable, ledgered, verifiable, reversible |
+| MSL + FSL, readable (`/opt/msl`, `/opt/fsl`) | source + per-module docs + guides + licence, copied from the same two repos at stage time |
+| `examples/hello`, `examples/lib-demo` | the starter project and the library install/uninstall tour |
+
+### Adding, replacing, or writing libraries
+
+The image ships a runnable answer to "how do I get my own library onto this
+engine?" — run it in a terminal:
+
+```bash
+bash /opt/examples/lib-demo/tour.sh
+```
+
+It installs a tiny library, calls it, verifies it, uninstalls it, and shows the
+engine back at its starting state — the same `m lib install` this image used
+for MSL and FSL. See
+[examples/lib-demo/README.md](examples/lib-demo/README.md) for the unit shape
+(`src/*.m` + `dist/<name>-manifest.json`) your own library needs.
 
 Measured sizes and the exact pins are in the
 [image dossier](docs/design/image-dossier.md).
@@ -148,9 +182,11 @@ Measured sizes and the exact pins are in the
 Dockerfile              the image, pins in its header
 scripts/stage-context.sh    assemble the ephemeral build context (sync-time)
 scripts/entrypoint.sh       the arbitrary-uid passwd guarantee
-scripts/verify-devbox.sh    the acceptance battery G1–G12 (driver seam only)
+scripts/verify-devbox.sh    the acceptance battery G1–G22 (driver seam only)
 scripts/check-pins.sh       offline drift gate: header pins == build pins
+scripts/devbox.code-workspace  the baked multi-root workspace (/work + libraries)
 examples/hello/             the baked starter project (MD-D2)
+examples/lib-demo/          installing + uninstalling libraries (MD-D9)
 docs/design/image-dossier.md  measured contents, sizes, and the sweep baseline
 ```
 

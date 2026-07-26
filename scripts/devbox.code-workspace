@@ -1,0 +1,13 @@
+{
+  // The devbox's default multi-root workspace (baked at
+  // /opt/code-server/devbox.code-workspace; devbox-code-server opens it).
+  // Your code stays first; the baked libraries appear beside it READ-ONLY in
+  // spirit — they are image layers, single-sourced from their home repos at
+  // image build, so edit them there, not here.
+  "folders": [
+    { "path": "/work", "name": "work — your code" },
+    { "path": "/opt/examples", "name": "examples — hello + lib-demo" },
+    { "path": "/opt/msl", "name": "MSL — M Standard Library (m-stdlib)" },
+    { "path": "/opt/fsl", "name": "FSL — FileMan Standard Library (f-stdlib)" }
+  ]
+}

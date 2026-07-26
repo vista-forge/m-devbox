@@ -50,7 +50,8 @@
 # Build context is assembled by stage-context.sh (never committed): the pinned
 # ydbinstall.sh, the `m` + `m-ydb` binaries at HEAD, m-stdlib's callout sources
 # + registry, the MSL and FSL install units (src/*.m + dist manifest), the
-# pinned FileMan source + build scripts, MSL/FSL test suites, and examples/.
+# pinned FileMan source + build scripts, MSL/FSL test suites, the MSL/FSL
+# reading trees (source + docs, MD-D9), and examples/.
 
 # ── base: minimal YottaDB (MD-D3 shape, now pinned) ─────────────────────────
 FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS base
@@ -202,6 +203,22 @@ COPY msl-tests/ /opt/msl/tests/
 COPY fsl-tests/ /opt/fsl/tests/
 COPY examples/ /opt/examples/
 
+# ── P2 bake, step 4b: the MSL + FSL READING trees (MD-D9) ────────────────────
+# Source + per-module reference + guides + licence for the two libraries the
+# image installs, so a learner can read what they are calling — in the IDE,
+# beside their own code (the baked multi-root workspace surfaces both).
+# Single-sourced: staged from the m-stdlib / f-stdlib checkouts at build time,
+# never maintained here.
+#
+# ⚠️ NOT on $ydb_routines, deliberately. These are documentation copies of
+# routines `m lib install` already compiled into /opt/lib/r; a second copy on
+# the routine path could link ahead of the installed one, giving the engine a
+# library the ^mlib ledger does not account for. Read here; run what was
+# installed. Verify G21 gates the reading source against the resident routines
+# so a stale tree cannot ship.
+COPY msl-lib/ /opt/msl/
+COPY fsl-lib/ /opt/fsl/
+
 # ── P2 bake, step 5: PRECOMPILE the example .o + stamp all objects (PR-12) ────
 # For a hardened READ-ONLY rootfs, no baked routine may ZLINK at runtime (the
 # source dirs are read-only, so the .o write fails and the routine fails to link
@@ -305,6 +322,12 @@ RUN set -e; \
 # content, not the +x bit).
 COPY --chmod=0755 m-run.sh /usr/local/bin/m-run
 COPY code-server-defaults-settings.json /opt/code-server/defaults/settings.json
+# The default multi-root workspace (MD-D9): /work first, then the examples and
+# the MSL/FSL reading trees, so the libraries are in the explorer beside the
+# user's own code. Mode 0664 + root's gid 0 keeps it writable under the
+# arbitrary-uid contract, so a user adding their own folder to the workspace
+# does not hit a read-only error.
+COPY --chmod=0664 devbox.code-workspace /opt/code-server/devbox.code-workspace
 COPY --chmod=0755 code-server-launch.sh /usr/local/bin/devbox-code-server
 EXPOSE 8080
 

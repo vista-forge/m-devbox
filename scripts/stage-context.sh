@@ -23,7 +23,11 @@
 #   - FileMan  the pinned, checksum-verified fileman source + its build
 #           scripts, installed inside `docker build` over the local transport
 #           (§5.2(a) / PR-10).
-#   - examples/hello  the starter project (MD-D2), copied from this repo.
+#   - MSL/FSL reading trees  the SAME two repos again, this time as source +
+#           documentation for a human to READ in the IDE (/opt/msl, /opt/fsl).
+#           One maintained copy — the repo — taken at image-build time.
+#   - examples/  hello (the starter project, MD-D2) and lib-demo (the
+#           install/uninstall tour), copied from this repo.
 #
 # Network: ydbinstall.sh and the FileMan source are fetched ONCE from their
 # PINNED locations and checksum-verified — sync-time moments, not gate-time
@@ -61,6 +65,7 @@ cp "$HERE/entrypoint.sh"        "$CTX/"
 cp "$HERE/code-server-launch.sh" "$CTX/"
 cp "$HERE/m-run.sh"              "$CTX/"
 cp "$HERE/code-server-defaults-settings.json" "$CTX/"
+cp "$HERE/devbox.code-workspace"             "$CTX/"
 
 # ── pinned ydbinstall.sh (cache-friendly: fetch only when absent/mismatched) ─
 if ! echo "${YDBINSTALL_SHA256}  ${CTX}/ydbinstall.sh" | sha256sum -c - >/dev/null 2>&1; then
@@ -125,6 +130,38 @@ rm -rf "$CTX/msl-tests" "$CTX/fsl-tests"
 mkdir -p "$CTX/msl-tests" "$CTX/fsl-tests"
 cp "$FORGE/m-stdlib/tests/"*.m "$CTX/msl-tests/"
 cp "$FORGE/f-stdlib/tests/"*.m "$CTX/fsl-tests/"
+
+# ── library READING trees: source + documentation, for humans (MD-D9) ────────
+# The image installs MSL/FSL as compiled routines; a learner also needs to READ
+# them — the source they are calling, the per-module reference, the user guides.
+# Staged from the SAME repo checkouts as the install units (one maintained copy,
+# copied at build time), and landing at /opt/msl and /opt/fsl beside the suites.
+#
+# ⚠️ These trees are deliberately NOT on $ydb_routines. They are documentation
+# copies of routines that are ALREADY installed into /opt/lib/r by `m lib
+# install`; putting a second copy on the routine path would let the engine link
+# the unmanaged copy instead of the installed one — a library the ledger cannot
+# account for. Read here, run what `m lib` installed. Verify G21 gates the two
+# against each other so a stale reading tree cannot ship
+# [[data-shipping-pin-is-a-stale-grammar]].
+stage_lib_docs() { # $1 = repo name, $2 = staged dir
+  local repo="$1" out="$2" root="$FORGE/$1"
+  rm -rf "$out"
+  mkdir -p "$out/src" "$out/docs"
+  cp "$root/src/"*.m        "$out/src/"
+  cp -r "$root/docs/modules" "$out/docs/modules"
+  [ -d "$root/docs/guides" ] && cp -r "$root/docs/guides" "$out/docs/guides"
+  for f in README.md LICENSE NOTICE; do
+    [ -f "$root/$f" ] && cp "$root/$f" "$out/$f"
+  done
+  # The manifest travels with the source: it is what makes the tree a UNIT
+  # rather than a pile of routines, and lib-demo's README points at it.
+  mkdir -p "$out/dist"
+  cp "$root/dist/"*-manifest.json "$out/dist/"
+  return 0
+}
+stage_lib_docs m-stdlib "$CTX/msl-lib"
+stage_lib_docs f-stdlib "$CTX/fsl-lib"
 
 # ── FileMan: pinned source + build scripts (installed in-build, §5.2(a)) ─────
 # The fileman source is pinned to an immutable commit and verified

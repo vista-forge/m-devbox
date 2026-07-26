@@ -69,6 +69,18 @@
 #       repo's committed .vsix), so an image built off a stale staged copy, or
 #       an m-vscode release the image has not re-baked, goes RED
 #       [[data-shipping-pin-is-a-stale-grammar]].
+#   ── MD-D9 (the libraries, readable + demonstrated) ─────────────────────────
+#   G21 The MSL/FSL READING trees are baked (source + per-module reference +
+#       guides + licence), are byte-identical to the routines actually resident
+#       on the engine, are OFF $ydb_routines (so a documentation copy can never
+#       shadow the installed library), and are surfaced by the baked multi-root
+#       workspace beside the user's own /work.
+#   G22 The examples/lib-demo tour runs end to end in the image: install a
+#       library, call it, verify it, uninstall it, and prove the engine is back
+#       where it started — twice, from a fresh container each time. Its negative
+#       control asserts the demo library is NOT resident in a fresh image, so a
+#       green tour cannot be a no-op.
+#   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
 #       ONLY writable surface is ephemeral tmpfs (the passwd-derived run-lock
@@ -454,6 +466,127 @@ if [ "$G20B_RC" -ne 0 ] && printf '%s' "$G20B_OUT" | grep -qi 'remote transport 
   echo "  ✓ negative control: M_YDB_TRANSPORT=remote IS honored by the forwarding verb (delegation is real, not a hardcoded local)"
 else
   fail "G20b: M_YDB_TRANSPORT=remote was ignored by \`m vista status\` — m-cli is still fabricating a transport (rc=$G20B_RC)"$'\n'"$(printf '%s' "$G20B_OUT" | tail -15)"
+fi
+
+echo "== G21: MD-D9 — the MSL/FSL reading trees are baked, current, and OFF the routine path =="
+# (a) the trees exist and carry what a learner needs: source, per-module
+#     reference, the unit's manifest, the licence. Guides are MSL-only.
+G21A_OUT="$(timeout 60 docker run --rm "$IMG" bash -c '
+set -e
+for d in /opt/msl /opt/fsl; do
+  test -d "$d/src"          || { echo "MISSING $d/src"; exit 1; }
+  test -d "$d/docs/modules" || { echo "MISSING $d/docs/modules"; exit 1; }
+  test -f "$d/LICENSE"      || { echo "MISSING $d/LICENSE"; exit 1; }
+  ls "$d"/dist/*-manifest.json >/dev/null 2>&1 || { echo "MISSING $d/dist manifest"; exit 1; }
+  test "$(ls "$d"/src/*.m | wc -l)" -gt 0 || { echo "NO SOURCE in $d/src"; exit 1; }
+done
+test -d /opt/msl/docs/guides || { echo "MISSING /opt/msl/docs/guides"; exit 1; }
+echo "TREES_OK msl_src=$(ls /opt/msl/src/*.m | wc -l) msl_docs=$(ls /opt/msl/docs/modules/*.md | wc -l) fsl_src=$(ls /opt/fsl/src/*.m | wc -l) fsl_docs=$(ls /opt/fsl/docs/modules/*.md | wc -l)"
+' 2>&1)"; G21A_RC=$?
+if [ "$G21A_RC" -eq 0 ] && printf '%s' "$G21A_OUT" | grep -q TREES_OK; then
+  echo "  ✓ $(printf '%s' "$G21A_OUT" | grep TREES_OK)"
+else
+  fail "G21(a): the reading trees are incomplete (rc=$G21A_RC)"$'\n'"$(printf '%s' "$G21A_OUT" | tail -10)"
+fi
+
+# (b) THE ANTI-STALE GATE, three-way: for every routine a library's manifest
+#     declares, the HOME REPO's source, the baked reading tree, and the routine
+#     actually resident on the engine (/opt/lib/r, where `m lib install`
+#     compiled it) must be the SAME BYTES. This is what makes "one maintained
+#     copy" a fact instead of an intention — a reading tree that drifts from
+#     the repo teaches code nobody runs, and one that drifts from the engine
+#     teaches code THIS IMAGE does not run
+#     [[data-shipping-pin-is-a-stale-grammar]].
+#     Parsed host-side on purpose: the image has no python3, and the repo (the
+#     single source) is a fact set INDEPENDENT of the image being tested
+#     [[self-consistency-gates-cannot-see-omission]].
+IMG_SHAS="$(timeout 90 docker run --rm "$IMG" \
+  sh -c 'sha256sum /opt/msl/src/*.m /opt/fsl/src/*.m /opt/lib/r/*.m 2>/dev/null')"
+declare -A SHA
+while read -r h p; do [ -n "${p:-}" ] && SHA["$p"]="$h"; done <<<"$IMG_SHAS"
+g21b_bad=(); g21b_checked=0
+for pair in "m-stdlib:/opt/msl" "f-stdlib:/opt/fsl"; do
+  repo="${pair%%:*}"; tree="${pair##*:}"
+  man="$(ls "$FORGE/$repo/dist/"*-manifest.json 2>/dev/null | head -1)"
+  if [ ! -f "$man" ]; then g21b_bad+=("$repo: no manifest at $FORGE/$repo/dist"); continue; fi
+  while read -r mod; do
+    [ -n "$mod" ] || continue
+    repo_src="$FORGE/$repo/src/$mod.m"
+    if [ ! -f "$repo_src" ]; then g21b_bad+=("$mod: declared by $repo's manifest, absent from its own src/"); continue; fi
+    want="$(sha256sum "$repo_src" | cut -d' ' -f1)"
+    got_read="${SHA[$tree/src/$mod.m]:-}"
+    got_live="${SHA[/opt/lib/r/$mod.m]:-}"
+    if [ -z "$got_read" ]; then g21b_bad+=("$mod: missing from the baked reading tree $tree/src"); continue; fi
+    if [ -z "$got_live" ]; then g21b_bad+=("$mod: readable but NOT resident on the engine"); continue; fi
+    g21b_checked=$((g21b_checked + 1))
+    [ "$got_read" = "$want" ] || g21b_bad+=("$mod: reading tree ${got_read:0:12} != repo ${want:0:12} (stale image)")
+    [ "$got_live" = "$want" ] || g21b_bad+=("$mod: resident ${got_live:0:12} != repo ${want:0:12} (stale install)")
+  done < <(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["modules"]))' "$man")
+done
+if [ ${#g21b_bad[@]} -eq 0 ] && [ "$g21b_checked" -gt 0 ]; then
+  echo "  ✓ $g21b_checked routines: home repo == baked reading tree == resident on the engine (one maintained copy, proven)"
+else
+  fail "G21(b): reading tree / resident / repo disagree (checked=$g21b_checked)"$'\n'"$(printf '  %s\n' "${g21b_bad[@]:0:8}")"
+fi
+
+# (c) the trees must stay OFF $ydb_routines: they are a second copy of routines
+#     already installed into /opt/lib/r, and an on-path copy could link ahead of
+#     the installed one — a library the ^mlib ledger cannot account for.
+G21C_OUT="$(run "$IMG" sh -c 'echo "$ydb_routines"' 2>&1)"
+if printf '%s' "$G21C_OUT" | grep -qE '(^| )/opt/(msl|fsl)/src( |$)'; then
+  fail "G21(c): a reading tree is ON \$ydb_routines — it can shadow the installed library: $G21C_OUT"
+else
+  echo "  ✓ /opt/msl/src and /opt/fsl/src are not on \$ydb_routines (read here, run what \`m lib\` installed)"
+fi
+
+# (d) the baked multi-root workspace names the user's dir first, then the trees.
+# Read the baked file first and check THAT read, then assert on it: a docker
+# failure at the head of a pipe would otherwise be masked by python's status
+# [[gate-invocations-never-ride-a-pipe]].
+G21D_RAW="$(timeout 60 docker run --rm "$IMG" cat /opt/code-server/devbox.code-workspace 2>&1)" \
+  || fail "G21(d): could not read the baked workspace file:"$'\n'"$G21D_RAW"
+G21D_OUT="$(printf '%s' "$G21D_RAW" | python3 -c '
+import json, re, sys
+raw = sys.stdin.read()
+cfg = json.loads(re.sub(r"(^|\s)//[^\n]*", r"\1", raw))
+paths = [f["path"] for f in cfg["folders"]]
+missing = [p for p in ("/work", "/opt/examples", "/opt/msl", "/opt/fsl") if p not in paths]
+if missing or paths[0] != "/work":
+    print("WORKSPACE_BAD paths=%s missing=%s" % (paths, missing)); sys.exit(1)
+print("WORKSPACE_OK " + " ".join(paths))' 2>&1)"; G21D_RC=$?
+if [ "$G21D_RC" -eq 0 ] && printf '%s' "$G21D_OUT" | grep -q WORKSPACE_OK; then
+  echo "  ✓ $(printf '%s' "$G21D_OUT" | grep WORKSPACE_OK)"
+else
+  fail "G21(d): the baked workspace does not surface the libraries beside /work (rc=$G21D_RC)"$'\n'"$(printf '%s' "$G21D_OUT" | tail -10)"
+fi
+
+echo "== G22: MD-D9 — the lib-demo install/uninstall tour runs end to end =="
+# Negative control FIRST: the demo library must NOT be resident in a fresh
+# image. Without this, a pre-installed greeter would let the tour "pass" while
+# demonstrating nothing — the install step would be a no-op and the uninstall
+# would be undoing the image itself.
+G22N_OUT="$(run "$IMG" m lib list --engine ydb 2>&1)"
+if printf '%s' "$G22N_OUT" | grep -q greeter; then
+  fail "G22 control: 'greeter' is already in the fresh image's ledger — the tour would demonstrate nothing"$'\n'"$G22N_OUT"
+else
+  echo "  ✓ control: the demo library is absent from the fresh image (the tour really installs it)"
+fi
+# The tour itself: install → call → verify → uninstall → prove-gone, with every
+# step asserted inside the script (it exits nonzero at the first surprise).
+G22_OUT="$(timeout 300 docker run --rm "$IMG" bash /opt/examples/lib-demo/tour.sh 2>&1)"; G22_RC=$?
+if [ "$G22_RC" -eq 0 ] && printf '%s' "$G22_OUT" | grep -q TOUR-OK; then
+  echo "  ✓ install → call → verify → uninstall → engine back to its starting state (TOUR-OK)"
+else
+  fail "G22: the lib-demo tour did not complete (rc=$G22_RC)"$'\n'"$(printf '%s' "$G22_OUT" | tail -25)"
+fi
+# And the round trip must be REPEATABLE: a second run proves the uninstall
+# genuinely restored the pre-install state rather than leaving a residue the
+# first run happened to tolerate.
+G22R_OUT="$(timeout 300 docker run --rm "$IMG" bash /opt/examples/lib-demo/tour.sh 2>&1)"; G22R_RC=$?
+if [ "$G22R_RC" -eq 0 ] && printf '%s' "$G22R_OUT" | grep -q TOUR-OK; then
+  echo "  ✓ repeatable: a second full round trip in a fresh container is green too"
+else
+  fail "G22 repeat: the second tour run failed (rc=$G22R_RC)"$'\n'"$(printf '%s' "$G22R_OUT" | tail -25)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

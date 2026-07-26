@@ -27,6 +27,13 @@ if [ ! -f "$STATE/user-data/User/settings.json" ] && [ -f /opt/code-server/defau
   cp /opt/code-server/defaults/settings.json "$STATE/user-data/User/settings.json"
 fi
 
+# Open the baked multi-root workspace (your /work plus the readable MSL/FSL
+# library trees and the examples) so the libraries sit in the explorer beside
+# the user's own code. Overridable, and /work is the fallback if the file is
+# ever absent — the IDE must open either way.
+WORKSPACE="${CODE_SERVER_WORKSPACE:-/opt/code-server/devbox.code-workspace}"
+[ -f "$WORKSPACE" ] || WORKSPACE=/work
+
 # --auth none: a local dev box; the README binds the port to 127.0.0.1 only.
 exec code-server \
   --bind-addr "0.0.0.0:${PORT}" \
@@ -35,4 +42,4 @@ exec code-server \
   --disable-update-check \
   --user-data-dir "$STATE/user-data" \
   --extensions-dir /opt/code-server/extensions \
-  /work
+  "$WORKSPACE"

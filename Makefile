@@ -67,11 +67,16 @@ docs-gate: ## Offline: docs link + layout gate
 	python3 ../.github/scripts/link-check.py docs README.md CLAUDE.md
 	python3 ../.github/scripts/layout-check.py docs
 
+# Every shipped script, wherever it lives: scripts/ AND the scripts baked into
+# examples/ (lib-demo's tour is run by users and by G22 — it is shipped code).
+SHELL_SOURCES := $(wildcard scripts/*.sh) $(wildcard examples/*/*.sh)
+
 shell-gate: ## Offline: syntax-check every shipped shell script (bash -n floor, + shellcheck when present)
-	@set -e; for f in scripts/*.sh; do bash -n "$$f"; done; echo "bash -n: clean ($$(ls scripts/*.sh | wc -l) scripts)"
+	@set -e; for f in $(SHELL_SOURCES); do bash -n "$$f"; done; \
+	  echo "bash -n: clean ($(words $(SHELL_SOURCES)) scripts)"
 	@sh -n scripts/entrypoint.sh && echo "sh -n: entrypoint.sh clean (it runs under /bin/sh, not bash)"
 	@if command -v shellcheck >/dev/null 2>&1; then \
-	  shellcheck -x scripts/*.sh && echo "shellcheck: clean"; \
+	  shellcheck -x $(SHELL_SOURCES) && echo "shellcheck: clean"; \
 	else \
 	  echo "shellcheck: not installed — the bash -n floor above ran instead (apt install shellcheck to add it)"; \
 	fi
