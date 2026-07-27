@@ -56,6 +56,20 @@ engine by `m lib` at build time (`/opt/lib/r`), and the gate proves the two are
 byte-identical, so what you read is what you run. Edits belong in the library's
 home repo — `m-stdlib` / `f-stdlib` — and reach the image on the next build.
 
+**Pasting into the terminal.** The first paste may fail with *"Unable to read
+from the browser's clipboard…"*. Nothing is wrong with the image: VS Code in a
+browser pastes via `navigator.clipboard.readText()`, which needs the browser's
+**clipboard-read** permission, and it starts out ungranted (measured at
+`http://127.0.0.1:8080`: `isSecureContext: true`, permission state `prompt`).
+Serving over HTTPS does **not** help — `127.0.0.1` is already a trusted origin.
+Three ways through, in order of how permanent they are:
+
+| Fix | How |
+|---|---|
+| Grant it once (Chrome/Edge) | Click the icon left of the address bar → *Site settings* → **Clipboard → Allow**, then reload. If a small "see text and images copied to the clipboard?" prompt appears, *Allow* does the same thing. |
+| Grant it once (Firefox) | Firefox gates `readText` from web content: set `dom.events.asyncClipboard.readText` to `true` in `about:config`, or click the small **Paste** confirmation Firefox pops up. |
+| Skip the permission entirely | **Shift + right-click** in the terminal forces the *browser's* native context menu — its Paste needs no permission. On Linux, **middle-click** pastes the X11 primary selection straight into the terminal. |
+
 **Running M code.** With a `.m` file open, hit *Run Code* (the ▷ button, or
 `Ctrl+Alt+N`) — Code Runner's `.m` executor is wired to the baked `m-run` helper,
 which adds the file's directory to `$ydb_routines`, links it on the local
