@@ -293,4 +293,52 @@ cp "${vsix_src[0]}" "$CTX/m-vscode/m-vscode.vsix"
     "$(grep -E '^commit=' "$VF/scripts/seed/source.pin" | cut -d= -f2 | cut -c1-12)"
 } | tee "$CTX/context.provenance"
 
+# ── the context contains EXACTLY what this script put there ─────────────────
+# The context directory PERSISTS between runs (deliberately — the 196 MB
+# code-server .deb and the .vsix files are copied in from the cache each time,
+# and a wholesale rm would not re-download them but would still churn 200 MB).
+# The consequence is that it ACCUMULATES: this script `rm -rf`s the directories
+# it manages and leaves anything else alone. Found for real 2026-07-27 —
+# `msl-src/` from the P1 layout was still sitting in the context five days after
+# the script stopped producing it, harmless only because no COPY referenced it
+# any more.
+#
+# That is the shape of [[tests-and-product-built-differently]]: a stale file
+# that a Dockerfile DOES reference builds a different program than the one you
+# tested, and nothing would say so. So the staged tree is now closed rather than
+# open — every top-level entry must be one this script wrote.
+#
+# Adding a new staged artifact? Add it to EXPECTED. The refusal naming your new
+# file IS the reminder; that is the intended workflow, not a false positive.
+EXPECTED=(
+  Dockerfile entrypoint.sh code-server-launch.sh m-run.sh
+  code-server-defaults-settings.json devbox.code-workspace
+  ydbinstall.sh code-server.deb code-runner.vsix errorlens.vsix rainbow-csv.vsix
+  m m-ydb
+  m-stdlib f-stdlib msl-tests fsl-tests msl-lib fsl-lib
+  fileman examples m-vscode licenses
+  context.provenance
+)
+unexpected=()
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  found=0
+  for e in "${EXPECTED[@]}"; do [ "$entry" = "$e" ] && { found=1; break; }; done
+  [ "$found" -eq 1 ] || unexpected+=("$entry")
+done < <(ls -A "$CTX")
+
+if [ "${#unexpected[@]}" -gt 0 ]; then
+  echo "stage: REFUSED — the build context holds files this script did not stage:" >&2
+  for u in "${unexpected[@]}"; do
+    printf '    %-28s (last modified %s)\n' "$u" \
+      "$(date -r "$CTX/$u" +%Y-%m-%d 2>/dev/null || echo '?')" >&2
+  done
+  echo "  A 'docker build' sees everything here, so leftovers can silently change" >&2
+  echo "  what gets built. Remove them, or start clean:" >&2
+  echo "      make clean && make stage" >&2
+  echo "  (clean is cheap — the .deb and .vsix files are cached outside the context)" >&2
+  exit 1
+fi
+echo "stage: context is closed — ${#EXPECTED[@]} expected entries, no leftovers"
+
 echo "staged: $CTX"
