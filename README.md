@@ -151,6 +151,23 @@ The *Run Code* button handles this for you (its helper adds the file's own
 directory before running), so this only matters for `m test` and hand-run
 routines from a directory you mounted yourself.
 
+### One thing drives the engine at a time
+
+The engine is single-writer, and the toolchain enforces it with a lock that
+**refuses immediately rather than queueing**. So if the IDE's status chip or
+test explorer touches the engine while a terminal command is mid-run — or you
+start a second `m test` in another terminal — the newcomer fails at once with a
+run-lock message rather than waiting its turn.
+
+That is by design, not a bug, and the failure is deliberately loud: a silent
+wait would hide the fact that two writers wanted the same engine, and a
+deadlock is impossible because the lock never blocks. Re-run the command once
+the first finishes.
+
+Practical version: if a command refuses unexpectedly, something else is already
+using the engine — usually the extension probing it in the background. Wait a
+moment and try again.
+
 ### Running M
 
 ```bash
