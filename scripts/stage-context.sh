@@ -38,7 +38,14 @@ set -euo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd -- "$HERE/.." && pwd)"
 FORGE="${FORGE:-$(cd -- "$REPO/.." && pwd)}"
-CTX="${1:?usage: stage-context.sh <context-dir>}"
+CTX="${1:?usage: stage-context.sh <context-dir> [arch]}"
+# Target architecture for the image being staged. amd64 builds here; arm64
+# builds on a real Apple Silicon host (see ARCH note below).
+ARCH="${2:-${ARCH:-amd64}}"
+case "$ARCH" in
+  amd64|arm64) ;;
+  *) echo "stage-context: unsupported arch '$ARCH' (amd64|arm64)" >&2; exit 2 ;;
+esac
 
 # Pins — keep in lockstep with the Dockerfile header. `make check` runs
 # scripts/check-pins.sh, which red-gates any drift between the two files, so
@@ -50,8 +57,10 @@ YDBINSTALL_URL="https://gitlab.com/YottaDB/DB/YDB/-/raw/${YDB_COMMIT}/sr_unix/yd
 # code-server — the offline VS Code server (PR-23 / MD-D8). Pinned .deb, base
 # VS Code 1.130.0 (>= m-vscode's ^1.125.0 engine, so the .vsix activates as-is).
 CODE_SERVER_VERSION=4.130.0
-CODE_SERVER_DEB_SHA256=2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
-CODE_SERVER_URL="https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_amd64.deb"
+CODE_SERVER_DEB_SHA256_amd64=2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
+CODE_SERVER_DEB_SHA256_arm64=2ff0ca6d6696be06ce2e0d28c6dd0158383a40a6319af459c5d4dec910e5c131
+eval "CODE_SERVER_DEB_SHA256=\$CODE_SERVER_DEB_SHA256_${ARCH}"
+CODE_SERVER_URL="https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb"
 
 # Code Runner (formulahendry.code-runner) from Open VSX — baked + configured to
 # run `.m` routines via the m-run helper (PR-26). Pinned .vsix, installed offline.
@@ -93,7 +102,7 @@ fi
 #    Dockerfile re-verifies the sha in-build (PR-4: the Dockerfile fetches
 #    nothing; it COPYs a checksum-verified artifact from the context). ─────────
 CS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/m-devbox"
-CS_DEB="$CS_CACHE/code-server_${CODE_SERVER_VERSION}_amd64.deb"
+CS_DEB="$CS_CACHE/code-server_${CODE_SERVER_VERSION}_${ARCH}.deb"
 mkdir -p "$CS_CACHE"
 if ! echo "${CODE_SERVER_DEB_SHA256}  ${CS_DEB}" | sha256sum -c - >/dev/null 2>&1; then
   echo "stage: fetching code-server ${CODE_SERVER_VERSION} (sync-time, pinned)"
@@ -137,8 +146,13 @@ stage_vsix rainbow-csv "$RAINBOWCSV_VERSION" "$RAINBOWCSV_VSIX_SHA256" "$RAINBOW
 # reads the module list Go EMBEDS in the binary. Every vista-forge dep must be
 # a clean pinned semver equal to the repo's go.mod — a `(devel)` or a `=>` path
 # replacement means a workspace build leaked through, and the stage refuses.
-( cd "$FORGE/m-cli" && GOWORK=off go build -o "$CTX/m" . )
-( cd "$FORGE/m-ydb" && GOWORK=off go build -o "$CTX/m-ydb" . )
+# CGO_ENABLED=0: makes the binaries statically linked and CROSS-COMPILABLE, so
+# an arm64 image can be staged from this x86_64 box and only the docker build
+# itself needs real Apple Silicon. It also makes the Dockerfile's PR-6 reasoning
+# TRUE — that argument assumes a cgo-free binary reading /etc/passwd with no NSS
+# fallback, and until 2026-07-27 the binaries were actually built with cgo ON.
+( cd "$FORGE/m-cli" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOWORK=off go build -o "$CTX/m" . )
+( cd "$FORGE/m-ydb" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOWORK=off go build -o "$CTX/m-ydb" . )
 
 assert_pinned() { # $1 = binary, $2 = source repo dir
   local bin="$1" repo="$2" bad=0 dep ver
@@ -155,7 +169,11 @@ assert_pinned() { # $1 = binary, $2 = source repo dir
     echo "stage: PIN VIOLATION — $bin carries a module replacement (=>)" >&2; bad=1
   fi
   [ "$bad" -eq 0 ] || exit 1
-  echo "stage: $bin — all vista-forge deps pinned and matching go.mod"
+    got_arch="$(go version -m "$bin" | sed -n 's/^[[:space:]]*build[[:space:]]*GOARCH=//p' | head -1)"
+  if [ -n "$got_arch" ] && [ "$got_arch" != "$ARCH" ]; then
+    echo "stage: ARCH VIOLATION — $bin is GOARCH=$got_arch but staging for $ARCH" >&2; exit 1
+  fi
+  echo "stage: $bin — GOARCH=$got_arch, all vista-forge deps pinned and matching go.mod"
 }
 assert_pinned "$CTX/m"     "$FORGE/m-cli"
 assert_pinned "$CTX/m-ydb" "$FORGE/m-ydb"
@@ -341,4 +359,4 @@ if [ "${#unexpected[@]}" -gt 0 ]; then
 fi
 echo "stage: context is closed — ${#EXPECTED[@]} expected entries, no leftovers"
 
-echo "staged: $CTX"
+echo "staged: $CTX (target linux/$ARCH)"

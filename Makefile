@@ -28,7 +28,7 @@ IMAGE   ?= m-devbox:0.1.0-local
 CTX     ?= $(CURDIR)/.build-context
 ARCHIVE ?= $(HOME)/data/vista-forge/images
 
-.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish source-bundle load clean
+.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish source-bundle load clean mac-connect build-arm64 verify-arm64
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | \
@@ -36,12 +36,46 @@ help: ## Show this help
 
 # ── sync time (network) ─────────────────────────────────────────────────────
 
+ARCH        ?= amd64
+IMAGE_ARM64 ?= m-devbox:0.1.0-local-arm64
+
+# Remote arm64 builder. The image build RUNS the engine (GDE, mupip create,
+# `m lib install`, FileMan DINIT), and YottaDB refuses to verify itself under
+# qemu (YDBDISTUNVERIF), so an emulated arm64 build produces no image at all —
+# it must be built on real Apple Silicon. The Mac's Docker daemon is reached
+# over Tailscale by forwarding its socket, which avoids needing `docker` on the
+# Mac's non-interactive PATH (Docker's own ssh:// helper does).
+MAC_HOST ?= rafael@100.107.77.10
+MAC_SOCK ?= $(CURDIR)/.mac-docker.sock
+MAC_REMOTE_SOCK ?= /Users/rafael/.docker/run/docker.sock
+
 stage: ## SYNC-TIME: assemble the build context (pinned fetch + rebuild m/m-ydb at HEAD)
-	scripts/stage-context.sh "$(CTX)"
+	scripts/stage-context.sh "$(CTX)" "$(ARCH)"
 
 build: stage ## SYNC-TIME: stage + docker build the image from the pins
 	docker build -t "$(IMAGE)" "$(CTX)"
 	@docker image inspect --format 'built: $(IMAGE) {{.Id}} ({{.Size}} bytes)' "$(IMAGE)"
+
+mac-connect: ## Open the forwarded socket to the Apple Silicon build host
+	@if [ -S "$(MAC_SOCK)" ] && DOCKER_HOST="unix://$(MAC_SOCK)" docker version >/dev/null 2>&1; then \
+	  echo "mac: already connected"; \
+	else \
+	  rm -f "$(MAC_SOCK)"; \
+	  ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -fnNT \
+	    -L "$(MAC_SOCK):$(MAC_REMOTE_SOCK)" "$(MAC_HOST)" || \
+	    { echo "mac-connect: ssh forward failed (is Remote Login on?)"; exit 1; }; \
+	fi
+	@DOCKER_HOST="unix://$(MAC_SOCK)" docker version \
+	  --format 'mac builder: {{.Server.Os}}/{{.Server.Arch}} docker {{.Server.Version}}'
+
+build-arm64: mac-connect ## SYNC-TIME: stage arm64 + build NATIVELY on the Apple Silicon host
+	scripts/stage-context.sh "$(CTX)" arm64
+	DOCKER_HOST="unix://$(MAC_SOCK)" docker build --platform linux/arm64 -t "$(IMAGE_ARM64)" "$(CTX)"
+	@DOCKER_HOST="unix://$(MAC_SOCK)" docker image inspect \
+	  --format 'built: $(IMAGE_ARM64) {{.Id}} ({{.Architecture}}, {{.Size}} bytes)' "$(IMAGE_ARM64)"
+
+verify-arm64: mac-connect ## OFFLINE: run the acceptance battery against the arm64 image on the Mac
+	DOCKER_HOST="unix://$(MAC_SOCK)" scripts/verify-devbox.sh "$(IMAGE_ARM64)"
 
 rebuild: stage ## SYNC-TIME: --no-cache rebuild (the PR-4 reproducibility check)
 	docker build --no-cache -t "$(IMAGE)" "$(CTX)"
@@ -112,6 +146,12 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 #          secret store), and no first push recorded — THE LAST BLOCKER
 # Clear it, then set PUBLISH_OK=1 for the run that actually pushes.
 #
+# MULTI-ARCH. amd64 builds here; arm64 builds natively on Apple Silicon over
+# Tailscale (see build-arm64 — qemu cannot run the engine, so emulation is not
+# an option). Each daemon pushes its own native image under an arch-suffixed
+# tag, then `buildx imagetools create` joins them into one manifest list, so a
+# user's `docker pull` resolves the right architecture with no flag.
+#
 # NO `latest` TAG, deliberately. A mutable tag is how this org lost a working
 # IRIS image ([[iris-community-hub-rebuild-breaks-boot]]): `latest` moved under
 # it and the only good copy survived by luck. Publish immutable version tags and
@@ -119,18 +159,17 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 REGISTRY ?= docker.io/rafaelrichards
 PUBLISH_TAG ?= 0.1.0
 
-publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled)
+publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without PUBLISH_OK=1)
 	@if [ "$(PUBLISH_OK)" != "1" ]; then \
 	  echo "publish: REFUSED — this is a one-way door, so it needs PUBLISH_OK=1."; \
 	  echo "  PR-15 VA licence posture ............. OK  closed 2026-07-26"; \
 	  echo "  PR-17 combined-work disposition ...... OK  ruled  2026-07-26"; \
-	  echo "  PR-16 credentials in auth.env ........ check below"; \
-	  echo "  target: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)  (no 'latest' tag, by design)"; \
-	  echo "  amd64 only — arm64 unverified (PR-7); Apple Silicon runs emulated."; \
+	  echo "  PR-16 $(REGISTRY) org ......... register + creds in auth.env"; \
+	  echo "  target: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)  (linux/amd64 + linux/arm64, no 'latest')"; \
 	  echo "  When ready: make publish PUBLISH_OK=1"; \
 	  exit 2; \
 	fi
-	@docker image inspect "$(IMAGE)" >/dev/null 2>&1 || { echo "publish: no local image $(IMAGE) — run 'make build' first"; exit 1; }
+	@docker image inspect "$(IMAGE)" >/dev/null 2>&1 || { echo "publish: no local amd64 image $(IMAGE) — run 'make build'"; exit 1; }
 	@who="$$(docker system info --format '{{.Username}}' 2>/dev/null)"; \
 	 if [ -z "$$who" ]; then \
 	   echo "publish: REFUSED — not logged in to Docker Hub."; \
@@ -139,16 +178,26 @@ publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled
 	   exit 3; \
 	 fi; \
 	 echo "publish: authenticated as $$who"
-	@echo "publish: re-verifying the EXACT image before it leaves this machine"
+	@$(MAKE) --no-print-directory mac-connect
+	@DOCKER_HOST="unix://$(MAC_SOCK)" docker image inspect "$(IMAGE_ARM64)" >/dev/null 2>&1 || \
+	  { echo "publish: no arm64 image on the Mac — run 'make build-arm64'"; exit 1; }
+	@echo "publish: re-verifying BOTH images before either leaves this machine"
 	scripts/verify-devbox.sh "$(IMAGE)"
-	docker tag "$(IMAGE)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
-	docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
+	DOCKER_HOST="unix://$(MAC_SOCK)" scripts/verify-devbox.sh "$(IMAGE_ARM64)"
+	@echo "publish: pushing per-arch tags (each daemon pushes its own native image)"
+	docker tag "$(IMAGE)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-amd64"
+	docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-amd64"
+	DOCKER_HOST="unix://$(MAC_SOCK)" docker tag "$(IMAGE_ARM64)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
+	DOCKER_HOST="unix://$(MAC_SOCK)" docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
+	@echo "publish: joining both under one tag so 'docker pull' resolves per-arch"
+	docker buildx imagetools create -t "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" \
+	  "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-amd64" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
+	@echo
 	@echo "published: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
-	@echo "RECORD THIS DIGEST — it is the immutable identity consumers should pin:"
-	@docker image inspect --format '{{range .RepoDigests}}  {{.}}{{"\n"}}{{end}}' "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" 2>/dev/null || true
-
-source-bundle: ## Corresponding source for the published image (AGPL duty; refuses on dirt or skew)
-	bash scripts/source-bundle.sh --image "$(IMAGE)" --tag "$(PUBLISH_TAG)" $(if $(DIGEST),--digest "$(DIGEST)",)
+	@docker buildx imagetools inspect "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" \
+	  --format '{{range .Manifest.Manifests}}  {{.Platform.OS}}/{{.Platform.Architecture}}  {{.Digest}}{{println}}{{end}}' 2>/dev/null || true
+	@echo "RECORD the digest above, then bind the source bundle to it:"
+	@echo "    make source-bundle DIGEST=<digest>"
 
 load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
 	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \

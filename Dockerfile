@@ -37,8 +37,9 @@
 #   ydbinstall gitlab.com/YottaDB/DB/YDB @ ab1d352b1a73b8945055337cd4b2b9da07ef73c5, sr_unix/ydbinstall.sh
 #              sha256 ff106cae18a69702eec8a196310116958a5d6e1e36b47ac87fb4a4fa6192f05c
 #   YottaDB    r2.06 (explicit positional pin — never "latest")
-#   code-server v4.130.0 (base VS Code 1.130.0 >= m-vscode ^1.125.0), amd64 .deb
-#              sha256 2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
+#   code-server v4.130.0 (base VS Code 1.130.0 >= m-vscode ^1.125.0), per-arch .deb
+#              amd64 sha256 2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
+#              arm64 sha256 2ff0ca6d6696be06ce2e0d28c6dd0158383a40a6319af459c5d4dec910e5c131
 #   code-runner formulahendry.code-runner v0.12.2 (Open VSX .vsix)
 #              sha256 99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe
 #   errorlens  usernamehw.errorlens v3.28.0 (Open VSX .vsix)
@@ -310,8 +311,19 @@ COPY code-server.deb /tmp/code-server.deb
 COPY code-runner.vsix /opt/code-runner/code-runner.vsix
 COPY errorlens.vsix /opt/code-runner/errorlens.vsix
 COPY rainbow-csv.vsix /opt/code-runner/rainbow-csv.vsix
+# code-server's .deb is per-architecture, so the expected digest is selected by
+# the platform DOCKER ITSELF reports (TARGETARCH), not by an ARG the caller
+# could get wrong. Both digests live here, so check-pins can still gate them
+# against stage-context.sh — PR-4's "the Dockerfile verifies what it is given"
+# survives multi-arch.
+ARG TARGETARCH
 RUN set -e; \
-    echo "2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851  /tmp/code-server.deb" | sha256sum -c -; \
+    case "$TARGETARCH" in \
+      amd64) cs_sha=2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851 ;; \
+      arm64) cs_sha=2ff0ca6d6696be06ce2e0d28c6dd0158383a40a6319af459c5d4dec910e5c131 ;; \
+      *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    echo "$cs_sha  /tmp/code-server.deb" | sha256sum -c -; \
     echo "99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe  /opt/code-runner/code-runner.vsix" | sha256sum -c -; \
     echo "10ab65469dd21cab7b177e9fc97ad7e85604b75c9ca140e5e8bdd9fc23f7119d  /opt/code-runner/errorlens.vsix" | sha256sum -c -; \
     echo "0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a  /opt/code-runner/rainbow-csv.vsix" | sha256sum -c -; \
@@ -390,7 +402,7 @@ LABEL org.opencontainers.image.title="m-devbox" \
       org.opencontainers.image.documentation="https://github.com/vista-forge/m-devbox#readme" \
       org.vista-forge.licenses.path="/opt/licenses" \
       org.vista-forge.engine="yottadb-r2.06" \
-      org.vista-forge.platform="linux/amd64 (arm64 unverified)"
+      org.vista-forge.engine.arch="$TARGETARCH"
 
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]

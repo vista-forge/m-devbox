@@ -96,11 +96,27 @@ code-server alone is 645 MB unpacked. Component-by-component detail:
 
 | Platform | Status |
 |---|---|
-| linux/amd64 | **verified** — the whole G1–G24 battery runs here |
-| linux/arm64 (incl. Apple Silicon) | **not verified.** The callout *compile* half is green under emulation, but YottaDB refuses to verify itself under qemu (it checks `$ydb_dist` against its own executable path and fails `YDBDISTUNVERIF`), so the engine cannot be trusted there. Real arm64 hardware is required to close this. |
+| linux/amd64 | **verified** — the full G1–G27 battery |
+| linux/arm64 (incl. Apple Silicon) | **verified** — the same G1–G27 battery, run natively |
 
-Running the amd64 image on Apple Silicon means emulation, with the engine in
-exactly the state above — treat it as unsupported rather than slow.
+Both architectures are built and gated the same way, and published under one
+tag, so `docker pull` resolves the right one with no flag.
+
+**How arm64 is built, and why it cannot be emulated.** The image build *runs*
+the engine — `GDE`, `mupip create`, `m lib install`, FileMan's `DINIT`. Under
+qemu, YottaDB checks `$ydb_dist` against its own executable path, sees the
+emulator, and refuses with `YDBDISTUNVERIF`. So an emulated arm64 build does
+not produce a questionable image; it produces **no image**. The arm64 leg is
+therefore built on real Apple Silicon:
+
+```bash
+make build-arm64     # stages arm64, builds natively on the remote host
+make verify-arm64    # the same battery, against that image
+```
+
+Only the `docker build` is remote. The `m` and `m-ydb` binaries cross-compile
+here (`CGO_ENABLED=0`, statically linked), so the build host needs nothing but
+Docker.
 
 ### The IDE and its extensions
 

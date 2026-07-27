@@ -67,28 +67,30 @@ else
   bad "YottaDB version drift — header='$hdr_ydb' in-build='$run_ydb' (and never 'latest')"
 fi
 
-# ── code-server pin (PR-23): version + .deb sha256 across the same three places
+# ── code-server pin (PR-23): version + PER-ARCH .deb sha256, three places ────
+# code-server ships a different .deb per architecture, so there are two digests
+# to keep in lockstep, each across the header, the in-build `sha256sum -c`
+# (selected by TARGETARCH), and stage-context.sh. Multi-arch doubled the pins;
+# it must not halve the gating.
 hdr_cs_ver="$(sed -n 's/^#.*code-server v\([0-9.]*\).*/\1/p' "$DF" | head -1)"
-hdr_cs_sha="$(grep -A1 'code-server v' "$DF" | sed -n 's/^#.*sha256 \([0-9a-f]\{64\}\).*/\1/p' | head -1)"
-run_cs_sha="$(sed -n 's/^ *echo "\([0-9a-f]\{64\}\) .*\/tmp\/code-server.deb.*/\1/p' "$DF" | head -1)"
 sc_cs_ver="$(sed -n 's/^CODE_SERVER_VERSION=\([0-9.]*\)/\1/p' "$SC")"
-sc_cs_sha="$(sed -n 's/^CODE_SERVER_DEB_SHA256=\([0-9a-f]\{64\}\)/\1/p' "$SC")"
-
-for v in hdr_cs_ver hdr_cs_sha run_cs_sha sc_cs_ver sc_cs_sha; do
-  [ -n "${!v}" ] || bad "could not extract '$v' — the gate cannot see what it is comparing (fix the extractor, do not delete the check)"
-done
 [ -n "$hdr_cs_ver" ] && [ -n "$sc_cs_ver" ] && {
   [ "$hdr_cs_ver" = "$sc_cs_ver" ] \
     && ok "code-server version pin agrees (v$hdr_cs_ver)" \
     || bad "code-server VERSION drift — header v$hdr_cs_ver vs stage-context.sh $sc_cs_ver"
 }
-[ -n "$hdr_cs_sha" ] && [ -n "$sc_cs_sha" ] && [ -n "$run_cs_sha" ] && {
-  if [ "$hdr_cs_sha" = "$sc_cs_sha" ] && [ "$hdr_cs_sha" = "$run_cs_sha" ]; then
-    ok "code-server .deb sha256 agrees across header, in-build sha256sum -c, and stage-context.sh"
+for a in amd64 arm64; do
+  h="$(sed -n "s/^#.*${a} sha256 \([0-9a-f]\{64\}\).*/\1/p" "$DF" | head -1)"
+  r="$(sed -n "s/^ *${a}) cs_sha=\([0-9a-f]\{64\}\).*/\1/p" "$DF" | head -1)"
+  c="$(sed -n "s/^CODE_SERVER_DEB_SHA256_${a}=\([0-9a-f]\{64\}\)/\1/p" "$SC")"
+  if [ -z "$h" ] || [ -z "$r" ] || [ -z "$c" ]; then
+    bad "code-server ${a}: could not extract all three digests (header='${h:0:12}' in-build='${r:0:12}' stage='${c:0:12}') — fix the extractor, do not delete the check"
+  elif [ "$h" = "$r" ] && [ "$h" = "$c" ]; then
+    ok "code-server ${a} .deb sha256 agrees across header, in-build sha256sum -c, and stage-context.sh"
   else
-    bad "code-server SHA256 drift — header=$hdr_cs_sha in-build=$run_cs_sha stage-context=$sc_cs_sha"
+    bad "code-server ${a} SHA256 drift — header=$h in-build=$r stage-context=$c"
   fi
-}
+done
 
 # ── Code Runner pin (PR-26): version + .vsix sha256 across the same three places
 hdr_cr_ver="$(sed -n 's/^#.*code-runner formulahendry.code-runner v\([0-9.]*\).*/\1/p' "$DF" | head -1)"
