@@ -37,6 +37,15 @@ mdevbox() {
 }
 ```
 
+**Don't launch it from this repository's own checkout.** If you do, the explorer
+shows `examples/` twice — once as `work/examples` (the *source*, which lives
+here) and once as `examples (baked in image)` (the copies the image actually
+runs). They are not duplicates and they are not linked: editing one does not
+change the other, and which one runs depends on how you invoke it — *Run Code*
+executes the file you have open, while `m test /opt/examples/...` always runs
+the baked copy. Launch from a project directory instead, and the confusion
+disappears.
+
 ### Your first ten minutes
 
 The IDE opens on a four-folder workspace: **your code** first, then the
