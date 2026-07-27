@@ -125,9 +125,40 @@ stage_vsix() { # $1 = cache stem, $2 = version, $3 = sha256, $4 = url, $5 = ctx 
 stage_vsix errorlens   "$ERRORLENS_VERSION"  "$ERRORLENS_VSIX_SHA256"  "$ERRORLENS_URL"  errorlens.vsix
 stage_vsix rainbow-csv "$RAINBOWCSV_VERSION" "$RAINBOWCSV_VSIX_SHA256" "$RAINBOWCSV_URL" rainbow-csv.vsix
 
-# ── toolchain binaries, rebuilt from the local checkouts ────────────────────
-( cd "$FORGE/m-cli" && go build -o "$CTX/m" . )
-( cd "$FORGE/m-ydb" && go build -o "$CTX/m-ydb" . )
+# ── toolchain binaries: PINNED builds, enforced (PR-24) ─────────────────────
+# GOWORK=off, so each binary compiles against its go.mod pins served from the
+# local module cache — never against sibling working trees. Under go.work a
+# sibling could silently outrun its own pin and ship green (it did: the P2 bake
+# carried v0.12.0 SDK code on a v0.9.0 pin — [[gowork-masks-pin-skew]]); with
+# the workspace off, that skew is a compile error at stage time instead of a
+# provenance hole at publication time.
+#
+# The assertion below is the enforcement, not the comment: `go version -m`
+# reads the module list Go EMBEDS in the binary. Every vista-forge dep must be
+# a clean pinned semver equal to the repo's go.mod — a `(devel)` or a `=>` path
+# replacement means a workspace build leaked through, and the stage refuses.
+( cd "$FORGE/m-cli" && GOWORK=off go build -o "$CTX/m" . )
+( cd "$FORGE/m-ydb" && GOWORK=off go build -o "$CTX/m-ydb" . )
+
+assert_pinned() { # $1 = binary, $2 = source repo dir
+  local bin="$1" repo="$2" bad=0 dep ver
+  while read -r _ dep ver _; do
+    case "$dep" in github.com/vista-forge/*) ;; *) continue ;; esac
+    pin="$(awk -v d="$dep" '$1==d {print $2}' "$repo/go.mod")"
+    case "$ver" in
+      "(devel)"|"") echo "stage: PIN VIOLATION — $bin embeds $dep $ver (workspace build leaked)" >&2; bad=1 ;;
+      "$pin") ;;
+      *) echo "stage: PIN VIOLATION — $bin embeds $dep $ver but $repo/go.mod pins $pin" >&2; bad=1 ;;
+    esac
+  done < <(go version -m "$bin" | awk '$1=="dep"')
+  if go version -m "$bin" | grep -q '=>'; then
+    echo "stage: PIN VIOLATION — $bin carries a module replacement (=>)" >&2; bad=1
+  fi
+  [ "$bad" -eq 0 ] || exit 1
+  echo "stage: $bin — all vista-forge deps pinned and matching go.mod"
+}
+assert_pinned "$CTX/m"     "$FORGE/m-cli"
+assert_pinned "$CTX/m-ydb" "$FORGE/m-ydb"
 
 # ── m-stdlib: the MSL unit — callout sources (builder stage) AND the library
 #    install unit (final-stage `m lib install`) live under one staged dir ─────

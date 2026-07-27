@@ -10,16 +10,19 @@
 # produces the artifact that discharges it: one tarball, tied to one image, with
 # every commit recorded.
 #
-# WHAT "CORRESPONDING" MEANS HERE, and why it is not the go.mod pins.
-# `stage-context.sh` builds `m` and `m-ydb` with a bare `go build` under the
-# org-root go.work, so the baked binaries resolve their siblings to the WORKING
-# TREE, not to the versions their go.mod pins (tracker PR-24;
-# [[gowork-masks-pin-skew]]). Measured today: m-cli pins m-driver-sdk v0.13.0
-# while m-ydb pins v0.11.0, and neither is necessarily what got compiled in. So
-# the honest bundle is the HEAD of every contributing repo at build time — which
-# is what this collects, and what the manifest states plainly, so a rebuilder
-# uses these sources rather than re-resolving pins that would give them
-# different code.
+# WHAT "CORRESPONDING" MEANS HERE — three agreements, each checked:
+#   1. every repo's archived HEAD == what the image was staged from
+#      (context.provenance; refusal on drift or a DIRTY stage);
+#   2. the go.mod pins == the archived dep repos (each dep's HEAD carries the
+#      tag its consumers pin; one SDK version across both consumers) — this
+#      became checkable when PR-24 closed and stage-context went GOWORK=off;
+#   3. the image's own binaries embed those same pins (gate G27 reads
+#      `go version -m` out of the baked artifacts).
+# Together: tarball == repos == pins == shipped binaries, each pair verified
+# by a different instrument. (Before PR-24 closed, agreement 2 was FALSE —
+# m-cli pinned SDK v0.13.0 while m-ydb pinned v0.11.0 and both compiled
+# against working trees; the old header here documented that as a warning to
+# rebuilders. It is now a refusal instead — [[gowork-masks-pin-skew]].)
 #
 # It REFUSES on a dirty tree. A bundle cut from uncommitted work corresponds to
 # nothing anyone can verify, which is worse than no bundle at all.
@@ -110,6 +113,37 @@ else
   echo "source-bundle: WARNING — no build context at $PROV; correspondence to the image is UNVERIFIED" >&2
 fi
 
+# ── pin consistency (PR-24): the tarball's repos must BE the pinned versions ─
+# The image binaries are pin-built (GOWORK=off; gate G27), so the bundle's
+# archived dependency repos must be the commits those pins name — i.e. each
+# dep repo's HEAD must carry the tag its consumers pin, and both consumers
+# must agree on the SDK. Without this, the tarball could ship dep source that
+# is newer or older than what the binaries embed, and "corresponding" would be
+# a lie told politely.
+sdk_cli="$(awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}' "$FORGE/m-cli/go.mod")"
+sdk_ydb="$(awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}' "$FORGE/m-ydb/go.mod")"
+if [ "$sdk_cli" != "$sdk_ydb" ]; then
+  echo "source-bundle: REFUSED — SDK pin skew: m-cli pins $sdk_cli, m-ydb pins $sdk_ydb" >&2
+  exit 5
+fi
+pin_bad=()
+for dep in clikit m-driver-sdk m-parse; do
+  pin="$(awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}' "$FORGE/m-cli/go.mod")"
+  [ -n "$pin" ] || { pin="$(awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}' "$FORGE/m-ydb/go.mod")"; }
+  [ -n "$pin" ] || continue
+  if ! git -C "$FORGE/$dep" tag --points-at HEAD | grep -qx "$pin"; then
+    pin_bad+=("$dep: consumers pin $pin but HEAD ($(git -C "$FORGE/$dep" rev-parse --short HEAD)) does not carry that tag")
+  fi
+done
+if [ "${#pin_bad[@]}" -gt 0 ]; then
+  echo "source-bundle: REFUSED — the archived dep repos would not be the pinned versions:" >&2
+  printf '    %s
+' "${pin_bad[@]}" >&2
+  echo "  Tag the dep at HEAD and repin the consumers (or check out the pinned tag), then re-bundle." >&2
+  exit 5
+fi
+echo "source-bundle: pin consistency ok — deps tagged at the pinned versions; one SDK ($sdk_cli) across both binaries"
+
 IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || echo 'not-present-locally')"
 STAMP="$(git -C "$REPO" log -1 --format=%cd --date=format:%Y-%m-%d)"
 NAME="m-devbox-${TAG}-corresponding-source"
@@ -145,14 +179,14 @@ It exists because the image contains AGPL-3.0-or-later software — YottaDB and
 vista-forge's own code — and its recipients are entitled to the source. See
 \`COMMITS.txt\` for the exact commit of every repository included.
 
-## Read this before rebuilding
+## Rebuilding — the pins and this bundle agree, verifiably
 
-**Use the sources in this bundle, not the versions their \`go.mod\` files pin.**
-The image's \`m\` and \`m-ydb\` binaries are built under a Go workspace, so they
-compile against the sibling working trees rather than the pinned module
-versions. The two disagree in this release (m-cli pins m-driver-sdk v0.13.0,
-m-ydb pins v0.11.0), and the pins are **not** what shipped. The directories here
-are what shipped.
+As of this release the \`go.mod\` pins and these directories name the SAME
+code: the image binaries are built with \`GOWORK=off\` against the pinned
+module versions, every dependency repo in this bundle is archived at the exact
+commit its tag/pin names, and the image's acceptance gate G27 reads the module
+list Go embeds in the shipped binaries and refuses any mismatch. You may
+rebuild from the pins or from these directories; they are the same source.
 
 ## What is here
 

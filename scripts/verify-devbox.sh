@@ -101,6 +101,11 @@
 #       a personal account whose username is fixed, so the registry path cannot
 #       carry identity; the artifact must, and image.source is where an AGPL
 #       recipient goes to ask for corresponding source.
+#   G27 PR-24 — the BAKED binaries are pin-built. Go embeds the compiled-in
+#       module versions; a workspace build stamps siblings (devel), a pinned
+#       build stamps semvers. Asserts: clean semvers only, equal to committed
+#       go.mod pins, and one SDK version across both binaries. The artifact
+#       testifies; the gate cross-examines.
 #   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
@@ -779,6 +784,61 @@ if [ "$G26_RC" -eq 0 ] && printf '%s' "$G26_OUT" | grep -q LABELS_OK; then
   echo "  ✓ vendor, title, licence, source URL and the licences path are all declared on the image"
 else
   fail "G26: OCI provenance labels (rc=$G26_RC)"$'\n'"$(printf '%s' "$G26_OUT" | tail -5)"
+fi
+
+echo "== G27: PR-24 — the BAKED binaries are pin-built (no go.work leak) =="
+# The image's `m` and `m-ydb` carry, embedded by the Go toolchain itself, the
+# module versions they were compiled against. A workspace build stamps sibling
+# deps `(devel)`; a pinned GOWORK=off build stamps exact semvers. So the
+# artifact testifies about its own provenance, and this gate cross-examines it:
+#   (a) every vista-forge dep in both binaries is a clean semver — never
+#       `(devel)`, never a `=>` replacement;
+#   (b) each version equals the consuming repo's COMMITTED go.mod pin;
+#   (c) both binaries agree on the m-driver-sdk version (the one seam the
+#       driver-coordination model serializes).
+# This is what closes PR-24 as a gate rather than a habit: a reverted
+# stage-context.sh, a hand-built context, or a stale image all red HERE,
+# against the image, independent of how it claims it was built.
+G27_TMP="$(mktemp -d)"
+G27_CID="$(docker create "$IMG" 2>/dev/null)"
+if [ -z "$G27_CID" ]; then
+  fail "G27: could not create a container from $IMG to extract the binaries"
+else
+  docker cp -q "$G27_CID:/usr/local/bin/m" "$G27_TMP/m" 2>/dev/null \
+    && docker cp -q "$G27_CID:/usr/local/bin/m-ydb" "$G27_TMP/m-ydb" 2>/dev/null
+  docker rm -f "$G27_CID" >/dev/null 2>&1
+  g27_bad=()
+  g27_sdk_m=""; g27_sdk_ydb=""
+  g27_check() { # $1 = extracted binary, $2 = repo dir, $3 = label
+    local bin="$1" repo="$2" label="$3" dep ver pin
+    if [ ! -f "$bin" ]; then g27_bad+=("$label: binary missing from the image"); return; fi
+    if go version -m "$bin" | grep -q '=>'; then
+      g27_bad+=("$label: carries a module replacement (=>)")
+    fi
+    while read -r _ dep ver _; do
+      case "$dep" in github.com/vista-forge/*) ;; *) continue ;; esac
+      pin="$(awk -v d="$dep" '$1==d {print $2}' "$repo/go.mod")"
+      case "$ver" in
+        "(devel)"|"") g27_bad+=("$label: $dep is $ver — a workspace build leaked into the image") ;;
+        "$pin") ;;
+        *) g27_bad+=("$label: $dep $ver != committed pin $pin") ;;
+      esac
+      if [ "$dep" = "github.com/vista-forge/m-driver-sdk" ]; then
+        case "$label" in m) g27_sdk_m="$ver" ;; m-ydb) g27_sdk_ydb="$ver" ;; esac
+      fi
+    done < <(go version -m "$bin" | awk '$1=="dep"')
+  }
+  g27_check "$G27_TMP/m"     "$FORGE/m-cli" "m"
+  g27_check "$G27_TMP/m-ydb" "$FORGE/m-ydb" "m-ydb"
+  if [ -n "$g27_sdk_m" ] && [ -n "$g27_sdk_ydb" ] && [ "$g27_sdk_m" != "$g27_sdk_ydb" ]; then
+    g27_bad+=("SDK skew inside one image: m has $g27_sdk_m, m-ydb has $g27_sdk_ydb")
+  fi
+  rm -rf "$G27_TMP"
+  if [ ${#g27_bad[@]} -eq 0 ]; then
+    echo "  ✓ baked m + m-ydb: every vista-forge dep is a pinned semver matching committed go.mod (SDK $g27_sdk_m in both)"
+  else
+    fail "G27: baked-binary pin audit:"$'\n'"$(printf '    %s\n' "${g27_bad[@]}")"
+  fi
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

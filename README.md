@@ -344,10 +344,14 @@ That last check is why the order is **commit → `make build` → `make
 source-bundle`**: the bundle is validated against `.build-context/context.provenance`,
 which `make build` writes as it stages.
 
-**Why the bundle, and not "just read the go.mod pins":** the binaries are built
-under a Go workspace, so they compile against the sibling *working trees*, not
-the versions their `go.mod` files name. Those disagree in this release. The
-bundle is what shipped; the pins are not.
+**The pins, the bundle, and the binaries agree — and three instruments prove
+it.** The image binaries are built `GOWORK=off` against the committed `go.mod`
+pins; the stage refuses a binary whose embedded module list disagrees with the
+pins; gate **G27** re-reads that module list out of the *baked* binaries (a
+workspace build stamps its siblings `(devel)`, so a leak is unambiguous); and
+the bundle refuses unless every dependency repo's archived commit carries
+exactly the tag the consumers pin. A rebuilder can start from the pins or from
+the bundle's directories — they are the same source, verifiably.
 
 ```
 Dockerfile                    the image, pins in its header
