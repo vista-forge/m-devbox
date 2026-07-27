@@ -97,7 +97,13 @@ This is what you will actually type:
 | `m coverage` | test coverage |
 | `m watch` | re-run tests as you edit |
 | `m lib` | install / verify / uninstall libraries on the engine |
-| `m vista exec` | run a line of M against the live engine |
+| `m vista exec` | evaluate one line of M against the live engine |
+
+The last one is misnamed, and it is worth saying so plainly rather than letting
+you discover it: **it has nothing to do with VistA and requires none of it.** It
+evaluates a line of M against whatever engine is attached — this image uses it
+on a bare YottaDB throughout. Read it as "evaluate"; the `vista` in the middle
+is a historical artifact of where the toolchain grew up.
 
 Twenty verbs in all; run `m` with no arguments to browse them.
 
