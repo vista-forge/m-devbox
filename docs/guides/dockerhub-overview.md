@@ -4,16 +4,18 @@ The source of truth for what appears on
 `hub.docker.com/r/rafaelrichards/m-devbox`. Paste the body below into the
 repository's **Overview**; keep this file and the page in step.
 
-**Why this file exists at all:** the Hub page is the first and often only thing
-a stranger reads before pulling 509 MB. Everything needed to start, and every
-limitation they are entitled to know in advance, has to be on it. (The recipe
-repo went public 2026-07-27 so `image.source` resolves; the Hub page still
-carries the load, because nobody reads a GitHub repo before `docker run`.)
+**Who it is written for:** someone who has heard of MUMPS, has never written a
+line of it, and is deciding whether to spend 509 MB finding out. Every acronym
+is expanded on first use, and the stack is explained as **layers** rather than
+listed as parts — a newcomer cannot evaluate a bag of component names, but they
+can follow "each layer exists because the one below it leaves something out."
+If a sentence assumes you already know what FileMan is, that is a bug in this
+page.
 
 **Short description** (100-char field):
 
 ```
-A complete M (MUMPS) development environment: YottaDB, FileMan, MSL/FSL, and VS Code in your browser.
+Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Code — one container.
 ```
 
 ---
@@ -22,107 +24,193 @@ A complete M (MUMPS) development environment: YottaDB, FileMan, MSL/FSL, and VS 
 
 # m-devbox
 
-**A complete M (MUMPS) development environment in one image.** A YottaDB
-engine, the `m` toolchain, two standard libraries with their source and
-documentation, standalone VA FileMan, and a full VS Code IDE served to your
-browser — with nothing to install but Docker.
+**A complete M (MUMPS) development environment in one container.** Start it,
+open a browser, and you are writing and running M code against a real database
+in about a minute — no compiler, no toolchain, nothing to install but Docker.
 
-## Start
+M is one of the oldest languages still doing serious work: it runs a large share
+of the world's hospital and core-banking systems. It is also famously hard to
+*start* with, because the ecosystem assumes you already have an engine, a
+database, and forty years of context. This image is the missing on-ramp.
 
 ```bash
-docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
+docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
   rafaelrichards/m-devbox:0.1.0
 ```
 
-Then open **http://127.0.0.1:8080**.
+Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
+engine.
 
-**There is no `latest` tag — always name a version.** `docker pull
-rafaelrichards/m-devbox` will fail with `manifest unknown`, and that is
-deliberate: a mutable tag that moves under a working image is how projects lose
-reproducibility, so every release is an immutable version you can pin by digest.
+> **Always name a version.** There is no `latest` tag: a plain
+> `docker pull rafaelrichards/m-devbox` fails with `manifest unknown`, on
+> purpose. Mutable tags are how reproducibility quietly dies, so every release
+> is immutable and pinnable by digest.
 
-Use `127.0.0.1`, not `localhost` — the port is published on IPv4 loopback only,
-and `localhost` often resolves to IPv6 first. `-v "$PWD":/work` mounts the
-directory you ran the command from, so `cd` to your project first. The IDE runs
-without authentication; keep it bound to loopback.
+---
 
-## What you get
+## The stack, from the metal up
 
-| Component | Version |
-|---|---|
-| YottaDB | r2.06, byte mode, database already initialised |
-| `m` / `m-ydb` toolchain | test runner, linter, formatter, library installer |
-| **MSL** — M Standard Library | 40 routines, installed *and* readable at `/opt/msl` |
-| **FSL** — FileMan Standard Library | 7 routines, installed *and* readable at `/opt/fsl` |
-| VA FileMan | 22.2, standalone (no Kernel) |
-| VS Code (code-server) | 1.130.0, with M language support, Run Code, Error Lens, Rainbow CSV |
-| `git` | 2.47.3 |
+Six layers ship in this image. Each exists because the layer below it leaves
+something out.
 
-The IDE opens on a four-folder workspace: your code first, then the examples and
-both libraries — so the source of every library you call sits beside its
-reference documentation.
-
-## First ten minutes
-
-Open the built-in terminal (`` Ctrl+` ``) and:
-
-```bash
-m test /opt/examples/hello/tests      # 25 assertions across MSL, FileMan, FSL
-bash /opt/examples/lib-demo/tour.sh   # install a library, call it, remove it
+```
+        your application code
+   ┌───────────────────────────────────────────────────────────┐
+   │  FSL   FileMan Standard Library    fsldb · fsldd · fslq …  │  build apps
+   │  FM    VA FileMan 22.2             data dictionary + DBMS  │  on data
+   ├───────────────────────────────────────────────────────────┤
+   │  MSL   M Standard Library          stdjson · stdcrypto …   │  write modern M
+   ├───────────────────────────────────────────────────────────┤
+   │  m     developer toolchain         test · lint · fmt …     │  work on code
+   │  m-ydb engine adapter              hides mupip/gde/dse     │  talk to engine
+   ├───────────────────────────────────────────────────────────┤
+   │  YottaDB   the M engine — ACID transactions, daemonless    │  store data
+   └───────────────────────────────────────────────────────────┘
 ```
 
-Then open `examples/hello/src/DEMO.m` and press *Run Code* (`Ctrl+Alt+N`) for a
-guided tour of the stack, and `MSL/src/STDSTR.m` beside
-`MSL/docs/modules/stdstr.md` to see what reading a library here looks like.
+### 1. YottaDB — the engine
+
+The database and the language runtime in one. It stores hierarchical, sparse
+key-value structures called **globals**, and it is serious infrastructure: ACID
+transactions, journaling, replication, and a lineage (GT.M) that has run
+national-scale banking and health systems for decades. Already installed,
+initialised and running here.
+
+### 2. `m-ydb` — the engine adapter
+
+YottaDB is operated through a family of specialist utilities — `mupip`, `gde`,
+`dse`, `lke` — plus rules about process lifecycle and locking. `m-ydb` is the
+**vendor adapter** that hides all of that behind one neutral contract, so the
+tools above it never learn YottaDB-specific commands. You will rarely call it
+directly. It is what keeps everything above portable across M engines.
+
+### 3. `m` — the developer inner loop
+
+The toolchain a modern developer expects, for a language that never had one.
+This is what you will actually type:
+
+| Command | What it does |
+|---|---|
+| `m test` | run test suites, with assertion counts |
+| `m lint` | static analysis — the squiggles in the editor |
+| `m fmt` | format code |
+| `m coverage` | test coverage |
+| `m watch` | re-run tests as you edit |
+| `m lib` | install / verify / uninstall libraries on the engine |
+| `m vista exec` | run a line of M against the live engine |
+
+Twenty verbs in all; run `m` with no arguments to browse them.
+
+### 4. MSL — the **M Standard Library**
+
+M's built-in library is tiny by modern standards: no JSON, no HTTP, no crypto,
+no regular expressions. MSL closes that gap with **40 modules**, already
+installed on the engine and callable by name:
+
+- **Data formats** — `stdjson`, `stdxml`, `stdcsv`, `stdtoml`, `stdb64`, `stdhex`
+- **Crypto & security** — `stdcrypto`, `stdcsprng`, `stdjwt`, `stdsigv4`
+- **Network** — `stdhttp`, `stdhttpd`, `stdnet`, `stdurl`, `stds3`
+- **Text & data** — `stdstr`, `stdregex`, `stdcoll`, `stdkv`, `stdmath`, `stddate`
+- **Engineering** — `stdassert`, `stdlog`, `stdmock`, `stdprof`, `stdfs`, `stduuid`
+
+Calling one needs no import, no build step and no dependency file — just the
+name:
+
+```m
+write $$toUpperASCII^STDSTR("hello")
+write $$sha256^STDCRYPTO("abc")
+```
+
+### 5. FileMan — the database *management* system
+
+**VA FileMan** (*FileMan*, or FM) is where M stops being a key-value store and
+becomes an application platform. It is a **data-dictionary driven DBMS**: you
+define files and fields — a schema, itself held as data — and FileMan then
+provides validation, data types, cross-references, indexes, lookups, queries and
+reporting, enforced consistently for every program that touches the data.
+
+It is over forty years old, in continuous production, and is the foundation of
+VistA — the electronic health record running the entire U.S. Department of
+Veterans Affairs hospital system. Version **22.2**, standalone and ready.
+
+### 6. FSL — the **FileMan Standard Library**
+
+FileMan's own calling conventions were designed in another era and show it. FSL
+is a clean, modern API over the same engine — **7 modules** that let you build
+data-driven applications without wrestling the legacy interface:
+
+| Module | What it covers |
+|---|---|
+| `fsldb` | create, read, update, delete |
+| `fsldd` | the data dictionary — files, fields, types |
+| `fslq` | queries and lookups |
+| `fsldate` | FileMan's date format ↔ ISO 8601 |
+| `fslerr` | a consistent error envelope |
+| `fslenv`, `fslfix` | environment setup and test fixtures |
+
+Together that is **an ACID-compliant engine, a real schema layer on top of it,
+and a modern standard library on either side** — enough to build a genuine
+data-driven application, not just a demo.
+
+---
+
+## Your first ten minutes
+
+The IDE opens on four folders: **your code** first, then the examples and both
+libraries — so the source of everything you call is one click away. Open a
+terminal with `` Ctrl+` ``:
+
+1. **Prove it works.** Open `examples/hello/src/HELLO.m` and press *Run Code*
+   (▷, or `Ctrl+Alt+N`).
+2. **Tour the whole stack.** Run `examples/hello/src/DEMO.m` — it walks MSL →
+   FileMan → FSL, printing *call / returns / means* at every step.
+3. **Run real tests.** `m test /opt/examples/hello/tests` — 25 assertions.
+4. **Read a library while you use it.** Open `MSL/src/STDSTR.m` beside
+   `MSL/docs/modules/stdstr.md`.
+5. **See how libraries are installed.** `bash /opt/examples/lib-demo/tour.sh`
+   installs one, calls it, verifies it, removes it, and leaves the engine back
+   at its starting state.
+
+## What else is in the box
+
+**VS Code in the browser** (code-server), fully offline, with four extensions
+baked in: **m-vscode** (M language support, live linting, test explorer, engine
+status), **Code Runner** (the ▷ button, wired to run `.m` files), **Error Lens**
+(lint findings shown inline) and **Rainbow CSV**. `git` is installed, so Source
+Control works. Nothing is downloaded on first run.
 
 ## Know before you pull
 
-- **linux/amd64 only.** arm64 is unverified — YottaDB refuses to verify itself
-  under emulation, so Apple Silicon is unsupported rather than merely slow.
+- **linux/amd64 and linux/arm64**, both verified by the same 27-gate acceptance
+  battery. Apple Silicon runs natively, not emulated.
 - **One thing drives the engine at a time.** The engine lock refuses instantly
-  rather than queueing, so a command may fail if the IDE is probing the engine
-  in the background. Re-run it; this is by design, and it cannot deadlock.
+  rather than queueing, so a command can fail if the IDE is probing in the
+  background. Re-run it — by design, and it cannot deadlock.
 - **`/work` must be writable** — YottaDB writes compiled objects beside your
-  sources. Add `*.o` to your project's `.gitignore`.
-- **A `m vista exec` that reports success may still have failed.** YottaDB exits
-  0 even when it reports an M error, so read the output rather than trusting the
-  exit code. A fix is ruled and pending.
-- **First terminal paste may be refused** by the browser until you grant the
+  sources. Add `*.o` to your `.gitignore`.
+- **A green exit code from `m vista exec` is not proof of success.** YottaDB
+  exits 0 even when it reports an M error, so read the output. A fix is ruled
+  and pending.
+- **The first terminal paste may be refused** by your browser until you grant
   clipboard permission; `Shift`+right-click pastes without it.
+- The IDE runs **without authentication** — keep the port on loopback.
 
 ## Licence and source
 
 AGPL-3.0-or-later, with a commercial option. The image assembles AGPL YottaDB,
 Apache-2.0 VA FileMan (774 of its 861 routines carry the Medsphere/Apache
-notice), MIT code-server and extensions, and GPL-2.0 `git`.
-
-The complete inventory — every licence read from the artifact itself — ships
-**inside the image**:
+notice), MIT code-server and extensions, and GPL-2.0 `git`. The full inventory —
+every licence read from the artifact itself, not from a listing — ships inside:
 
 ```bash
 docker run --rm rafaelrichards/m-devbox:0.1.0 cat /opt/licenses/NOTICE
 ```
 
-`/opt/licenses/` also carries the full Apache-2.0 and AGPL-3.0 texts, and every
-image is labelled with its vendor, licence and source location:
-
-```bash
-docker inspect --format '{{json .Config.Labels}}' rafaelrichards/m-devbox:0.1.0
-```
-
 **Corresponding source.** As AGPL software, this image entitles you to the
-source it was built from. A source bundle is published for every release: it
-contains all ten contributing repositories at the exact commits the image was
-built from, and the build is pin-reproducible — the module versions embedded in
-the shipped binaries are gated against the committed pins.
-
-It is published in the image's own repository, which is also where
-`org.opencontainers.image.source` points:
-
-**<https://github.com/vista-forge/m-devbox/tree/main/releases>**
-
-Each release ships `m-devbox-<version>-corresponding-source.tar.gz` with a
-`.sha256` beside it, containing all ten contributing repositories at the exact
-commits the image was built from.
+source it was built from, published for every release at
+<https://github.com/vista-forge/m-devbox/tree/main/releases> — all ten
+contributing repositories at the exact commits the image was built from. The
+build is pin-reproducible, and the module versions embedded in the shipped
+binaries are gated against the committed pins.
 
 Not affiliated with or endorsed by the U.S. Department of Veterans Affairs.
