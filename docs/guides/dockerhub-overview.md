@@ -24,14 +24,9 @@ Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Cod
 
 # m-devbox
 
-**A complete M (MUMPS) development environment in one container.** Start it,
-open a browser, and you are writing and running M code against a real database
-in about a minute — no compiler, no toolchain, nothing to install but Docker.
+**A modern, integrated M (MUMPS) development environment in one container.** Start it, open a browser, and you are writing and running M code against a real database in about a minute — no compiler, no toolchain, nothing to install but Docker.
 
-M is one of the oldest languages still doing serious work: it runs a large share
-of the world's hospital and core-banking systems. It is also famously hard to
-*start* with, because the ecosystem assumes you already have an engine, a
-database, and forty years of context. This image is the missing on-ramp.
+M is one of the oldest languages still doing serious work: it runs a large share of the world's hospitals and core-banking systems. It is also famously hard to *start* with, because the ecosystem assumes you already have an engine, a database, and forty years of context. This image is the missing on-ramp.
 
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
@@ -40,8 +35,6 @@ docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
 
 Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
 engine. That mounts the directory you ran it from as your workspace.
-
-Pin a version if you prefer: `rafaelrichards/m-devbox:0.1.0`.
 
 ---
 
@@ -177,8 +170,8 @@ Control works. Nothing is downloaded on first run.
 
 ## Know before you pull
 
-- **linux/amd64 and linux/arm64**, both verified by the same 27-gate acceptance
-  battery. Apple Silicon runs natively, not emulated.
+- **Runs natively on Intel/AMD and on Apple Silicon** — both are built and
+  tested, so nothing is emulated.
 - **One thing drives the engine at a time.** The engine lock refuses instantly
   rather than queueing, so a command can fail if the IDE is probing in the
   background. Re-run it — by design, and it cannot deadlock.
@@ -191,9 +184,8 @@ Control works. Nothing is downloaded on first run.
 ## Licence and source
 
 AGPL-3.0-or-later, with a commercial option. The image assembles AGPL YottaDB,
-Apache-2.0 VA FileMan (774 of its 861 routines carry the Medsphere/Apache
-notice), MIT code-server and extensions, and GPL-2.0 `git`. The full inventory —
-every licence read from the artifact itself, not from a listing — ships inside:
+Apache-2.0 VA FileMan, MIT code-server and extensions, and GPL-2.0 `git`. The
+full inventory ships inside the image:
 
 ```bash
 docker run --rm rafaelrichards/m-devbox cat /opt/licenses/NOTICE
@@ -201,9 +193,7 @@ docker run --rm rafaelrichards/m-devbox cat /opt/licenses/NOTICE
 
 **Corresponding source.** As AGPL software, this image entitles you to the
 source it was built from, published for every release at
-<https://github.com/vista-forge/m-devbox/tree/main/releases> — all ten
-contributing repositories at the exact commits the image was built from. The
-build is pin-reproducible, and the module versions embedded in the shipped
-binaries are gated against the committed pins.
+<https://github.com/vista-forge/m-devbox/tree/main/releases> — every
+repository it was built from, at the exact commits used.
 
 Not affiliated with or endorsed by the U.S. Department of Veterans Affairs.
