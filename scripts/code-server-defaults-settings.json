@@ -12,5 +12,13 @@
   "security.workspace.trust.enabled": false,
 
   "extensions.autoCheckUpdates": false,
-  "extensions.autoUpdate": false
+  "extensions.autoUpdate": false,
+
+  "errorLens.enabledDiagnosticLevels": ["error", "warning"],
+  "errorLens.followCursor": "allLines",
+  "errorLens.messageMaxChars": 140,
+
+  "files.associations": {
+    "*.m": "mumps"
+  }
 }

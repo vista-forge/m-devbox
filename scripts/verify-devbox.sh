@@ -86,6 +86,12 @@
 #       Gates the wiring: the launch flag, its continued existence in the
 #       pinned code-server, and the settings fallback. Activation itself is a
 #       browser proof, recorded in the tracker — a green G23 is not that.
+#   G24 MD-D10 — the companion extensions (Error Lens, Rainbow CSV) are baked,
+#       `git` is present so code-server's built-in Source Control works, and —
+#       the leg that earns the others — EXACTLY ONE baked extension claims the
+#       M language, namely m-vscode. A second M extension would mean two
+#       highlighters and two linters on one file; this refuses it structurally
+#       rather than by review.
 #   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
@@ -650,6 +656,49 @@ if [ "$G23_SET_RC" -eq 0 ] && printf '%s' "$G23_SET_OUT" | grep -q SETTINGS_OK; 
   echo "  ✓ baked settings: trust disabled, no runtime marketplace queries, .m executor wired"
 else
   fail "G23: baked default settings (rc=$G23_SET_RC)"$'\n'"$(printf '%s' "$G23_SET_OUT" | tail -5)"
+fi
+
+echo "== G24: MD-D10 — companion extensions baked, git present, M ownership UNCONTESTED =="
+# (a) all four extensions are installed, and `git` exists so code-server's
+#     built-in Git extension (shipped, but inert without the binary) works.
+G24_OUT="$(timeout 90 docker run --rm "$IMG" bash -c '
+set -e
+for e in vista-forge.m-vscode formulahendry.code-runner usernamehw.errorlens mechatroner.rainbow-csv; do
+  code-server --list-extensions --extensions-dir /opt/code-server/extensions | grep -qi "$e" \
+    || { echo "MISSING_EXT $e"; exit 1; }
+done
+command -v git >/dev/null || { echo "MISSING_GIT"; exit 1; }
+echo "EXTS_OK $(git --version)"
+' 2>&1)"; G24_RC=$?
+if [ "$G24_RC" -eq 0 ] && printf '%s' "$G24_OUT" | grep -q EXTS_OK; then
+  echo "  ✓ four extensions baked + $(printf '%s' "$G24_OUT" | grep EXTS_OK | cut -d' ' -f2-) (built-in Source Control is now functional)"
+else
+  fail "G24(a): companion extensions / git (rc=$G24_RC)"$'\n'"$(printf '%s' "$G24_OUT" | tail -8)"
+fi
+
+# (b) THE CONFLICT GATE — the reason a companion extension is allowed here at
+#     all. m-vscode must remain the SOLE owner of the M language: exactly one
+#     baked extension may declare a `mumps` language or claim .m/.mac/.int.
+#     Adding a second M extension (there are several on the marketplaces) would
+#     put two highlighters and two linters on the same file and is the specific
+#     regression this gate exists to refuse.
+G24B_OUT="$(timeout 90 docker run --rm "$IMG" bash -c '
+claims=""
+for p in /opt/code-server/extensions/*/package.json; do
+  id=$(basename "$(dirname "$p")")
+  flat=$(tr -d "\n " < "$p")
+  case "$flat" in
+    *"\".m\""*|*"\".mac\""*|*"\".int\""*|*"\"id\":\"mumps\""*) claims="$claims $id" ;;
+  esac
+done
+echo "CLAIMANTS:$claims"
+' 2>&1)"
+G24B_LIST="$(printf '%s' "$G24B_OUT" | sed -n 's/^CLAIMANTS://p' | tr -s ' ')"
+G24B_N="$(printf '%s' "$G24B_LIST" | wc -w)"
+if [ "$G24B_N" -eq 1 ] && printf '%s' "$G24B_LIST" | grep -qi 'm-vscode'; then
+  echo "  ✓ exactly one extension claims the M language, and it is m-vscode ($(printf '%s' "$G24B_LIST" | tr -d ' '))"
+else
+  fail "G24(b): M-language ownership is contested — expected ONLY m-vscode, found ($G24B_N):$G24B_LIST"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

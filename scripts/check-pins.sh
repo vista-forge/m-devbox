@@ -113,5 +113,33 @@ done
   fi
 }
 
+# ── companion extensions (MD-D10): same three-place agreement as the others ──
+# Header comment, in-build `sha256sum -c`, and stage-context.sh must all state
+# the same version + digest. A new pin that skips this gate is a pin nobody
+# checks — the whole reason this script exists.
+check_vsix_pin() { # $1 = label, $2 = header regex, $3 = ctx filename, $4 = sc var prefix
+  local label="$1" hdr_re="$2" ctx="$3" pfx="$4"
+  local h_ver h_sha r_sha s_ver s_sha
+  h_ver="$(sed -n "s/^#.*${hdr_re} v\([0-9.]*\).*/\1/p" "$DF" | head -1)"
+  h_sha="$(grep -A1 "${hdr_re} v" "$DF" | sed -n 's/^#.*sha256 \([0-9a-f]\{64\}\).*/\1/p' | head -1)"
+  r_sha="$(sed -n "s|^ *echo \"\([0-9a-f]\{64\}\) .*${ctx}.*|\1|p" "$DF" | head -1)"
+  s_ver="$(sed -n "s/^${pfx}_VERSION=\([0-9.]*\)/\1/p" "$SC")"
+  s_sha="$(sed -n "s/^${pfx}_VSIX_SHA256=\([0-9a-f]\{64\}\)/\1/p" "$SC")"
+  local v
+  for v in h_ver h_sha r_sha s_ver s_sha; do
+    [ -n "${!v}" ] || { bad "$label: could not extract '$v' — the gate cannot see what it is comparing (fix the extractor, do not delete the check)"; return; }
+  done
+  [ "$h_ver" = "$s_ver" ] \
+    && ok "$label version pin agrees (v$h_ver)" \
+    || bad "$label VERSION drift — header v$h_ver vs stage-context.sh $s_ver"
+  if [ "$h_sha" = "$s_sha" ] && [ "$h_sha" = "$r_sha" ]; then
+    ok "$label .vsix sha256 agrees across header, in-build sha256sum -c, and stage-context.sh"
+  else
+    bad "$label SHA256 drift — header=$h_sha in-build=$r_sha stage-context=$s_sha"
+  fi
+}
+check_vsix_pin "Error Lens"  "errorlens  *usernamehw.errorlens"        "errorlens.vsix"   ERRORLENS
+check_vsix_pin "Rainbow CSV" "rainbow-csv *mechatroner.rainbow-csv"    "rainbow-csv.vsix" RAINBOWCSV
+
 [ $rc -eq 0 ] && echo "check-pins: OK"
 exit $rc

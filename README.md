@@ -1,60 +1,107 @@
 # m-devbox
 
-**A portable M development environment in one container image.** YottaDB, the
-five native `m-stdlib` callouts, the `m` / `m-ydb` toolchain, the **M Standard
-Library (MSL) and the FileMan Standard Library (FSL) installed durably via
-`m lib`**, **standalone VA FileMan 22.2**, and an `examples/hello` starter —
-built entirely from pins, no compiler and no Go toolchain required on the
-developer's machine.
+**A complete M (MUMPS) development environment in one container image.** A
+YottaDB engine, the `m` toolchain, two standard libraries with their source and
+documentation, standalone VA FileMan, and a full VS Code IDE in your browser —
+with nothing to install but Docker.
 
-> **Status: P2 built.** The image below is real, built, verified and archived
-> (265 MB; MSL + FSL + FileMan resident, `examples/hello` green). The
-> devcontainer and baked `.vsix` (P3), the one-command launchers (P4),
-> multi-arch (P5) and publication (P6) are not built yet. The live status of
-> every prerequisite is the
-> [prerequisites tracker](../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md)
-> — not this README, and not the proposal.
+You do not need a compiler, a Go toolchain, a clone of this organization, or
+any network access after the image is on your machine.
 
-## Quick start (from an org checkout)
+---
+
+## Start here
 
 ```bash
-make build     # sync-time: assemble the context from pins, docker build
-make verify    # offline: the acceptance battery, all through the driver seam
-make check     # offline: the full gate (pins + waterline + docs + shell + verify)
+docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
+  m-devbox:0.1.0-local
 ```
 
-If the image is missing but the org archive is present, restore it offline:
+Then open **http://127.0.0.1:8080**.
+
+Use the IP, not `localhost` — the port is published on IPv4 loopback only, and
+`localhost` often resolves to IPv6 first, which shows `ERR_CONNECTION_REFUSED`
+while the server is running fine. `-v "$PWD":/work` mounts **the directory you
+ran the command from**, so `cd` to your project first (or pass an absolute
+path). The port is bound to loopback deliberately: the IDE runs without
+authentication, so do not expose it to a network.
+
+Drop this in `~/.bashrc` to launch from any project directory with one word.
+It force-removes the previous container first, which is what frees port 8080:
 
 ```bash
-make load      # zstd -dc ~/data/vista-forge/images/... | docker load
+mdevbox() {
+  docker rm -f m-devbox >/dev/null 2>&1
+  docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
+    m-devbox:0.1.0-local
+}
 ```
 
-## Opening the IDE (code-server)
+### Your first ten minutes
 
-The devbox ships **code-server** — VS Code in the image, served to a browser.
-There is no desktop VS Code app to install and no client↔server version to keep
-in sync: code-server ships its own matched web client, so you can update your
-own VS Code as often as you like and nothing here breaks (MD-D8). Two extensions
-are **baked in** (installed from local `.vsix` files at build time, so the first
-open works fully offline — no download): **m-vscode** (M language tools) and
-**Code Runner**, pre-configured to run `.m` routines.
+The IDE opens on a four-folder workspace: **your code** first, then the
+examples and both libraries. Everything below runs in the built-in terminal
+(``Ctrl+` ``) unless it says otherwise.
 
-**What you see when it opens.** code-server opens a multi-root workspace with
-your own code first and the libraries beside it:
+1. **Prove the environment is alive.** Open `examples/hello/src/HELLO.m` and
+   press *Run Code* (▷, or `Ctrl+Alt+N`). It prints a greeting built with a
+   library call.
+2. **Take the guided tour of the stack.** Open `examples/hello/src/DEMO.m` and
+   run it the same way. It walks MSL → FileMan → FSL, printing *call / returns
+   / means* at every step.
+3. **Run the tests.** `m test /opt/examples/hello/tests` — 25 assertions
+   exercising the libraries end to end.
+4. **Read a library you just called.** Open `MSL/src/STDSTR.m` beside
+   `MSL/docs/modules/stdstr.md`. This is the point of the MSL and FSL folders:
+   the source you are calling, and its reference, side by side.
+5. **Learn how libraries get installed.** `bash /opt/examples/lib-demo/tour.sh`
+   installs a small library, calls it, verifies it, removes it, and proves the
+   engine is back where it started.
 
-| Folder | What it is |
+---
+
+## What is in the image
+
+| Component | Version / size | Notes |
+|---|---|---|
+| YottaDB | r2.06 | byte mode (`ydb_chset=M`), VistA-sized database already created |
+| Native callouts | 5 libraries | `std_compress`, `std_crypto`, `std_csprng`, `std_fs`, `std_http`, compiled during the build |
+| `m` / `m-ydb` toolchain | built from source at image build | test runner, linter, formatter, library installer, engine driver |
+| **MSL** — M Standard Library | 40 routines, 47 doc pages | installed on the engine *and* readable at `/opt/msl` |
+| **FSL** — FileMan Standard Library | 7 routines, 8 doc pages | installed on the engine *and* readable at `/opt/fsl` |
+| VA FileMan | 22.2 | standalone (no Kernel), built into the image |
+| code-server | 4.130.0 (VS Code 1.130.0) | the IDE, served to your browser, fully offline |
+| `git` | 2.47.3 | so VS Code's Source Control panel actually works |
+
+906 routines are resident in `/opt/lib/r` once MSL, FSL and FileMan are counted
+together.
+
+**Image size, three honest numbers**, because the tooling reports different
+things: **509.6 MB** as the sum of layer content (`docker image inspect`),
+**1.72 GB** unpacked on disk under the containerd snapshotter (`docker image
+ls`), and **477 MB** as the compressed archive. Most of it is the IDE —
+code-server alone is 645 MB unpacked. Component-by-component detail:
+[image dossier](docs/design/image-dossier.md).
+
+### The IDE and its extensions
+
+Four extensions are baked in and installed from local files at build time, so
+the first launch works with no network and no marketplace:
+
+| Extension | What it gives you |
 |---|---|
-| `work` | whatever you mounted at `/work` — your code |
-| `examples` | `hello` (the starter) and `lib-demo` (installing libraries) |
-| `MSL` | the M Standard Library: source, per-module reference, user guides |
-| `FSL` | the FileMan Standard Library: source, per-module reference |
+| **m-vscode** | the M language itself — highlighting, `m lint` diagnostics, the test explorer, and an engine-health status chip |
+| **Code Runner** | the ▷ *Run Code* button, wired to run `.m` routines on the local engine |
+| **Error Lens** | shows `m lint` findings inline on the offending line instead of only in the Problems panel |
+| **Rainbow CSV** | column colouring for `.csv`/`.tsv` — MSL ships a CSV module and FileMan exports CSV |
 
-So the library you are calling is one click away — read `MSL/src/STDJSON.m`
-next to `MSL/docs/modules/stdjson.md` while you write against it. Those trees
-are for **reading**: the routines that actually run were installed onto the
-engine by `m lib` at build time (`/opt/lib/r`), and the gate proves the two are
-byte-identical, so what you read is what you run. Edits belong in the library's
-home repo — `m-stdlib` / `f-stdlib` — and reach the image on the next build.
+**m-vscode is the only extension that touches M.** Error Lens contributes no
+language at all (it renders diagnostics other extensions produce) and Rainbow
+CSV claims only `.csv`/`.tsv`/`.tab`. That is enforced, not just intended:
+acceptance gate **G24** fails the build if more than one baked extension claims
+`.m`/`.mac`/`.int` or declares a `mumps` language. Do not add another MUMPS
+extension — two highlighters and two linters on one file is exactly what the
+gate refuses.
 
 **Pasting into the terminal.** The first paste may fail with *"Unable to read
 from the browser's clipboard…"*. Nothing is wrong with the image: VS Code in a
@@ -62,86 +109,67 @@ browser pastes via `navigator.clipboard.readText()`, which needs the browser's
 **clipboard-read** permission, and it starts out ungranted (measured at
 `http://127.0.0.1:8080`: `isSecureContext: true`, permission state `prompt`).
 Serving over HTTPS does **not** help — `127.0.0.1` is already a trusted origin.
-Three ways through, in order of how permanent they are:
 
 | Fix | How |
 |---|---|
-| Grant it once (Chrome/Edge) | Click the icon left of the address bar → *Site settings* → **Clipboard → Allow**, then reload. If a small "see text and images copied to the clipboard?" prompt appears, *Allow* does the same thing. |
-| Grant it once (Firefox) | Firefox gates `readText` from web content: set `dom.events.asyncClipboard.readText` to `true` in `about:config`, or click the small **Paste** confirmation Firefox pops up. |
-| Skip the permission entirely | **Shift + right-click** in the terminal forces the *browser's* native context menu — its Paste needs no permission. On Linux, **middle-click** pastes the X11 primary selection straight into the terminal. |
+| Grant it once (Chrome/Edge) | Click the icon left of the address bar → *Site settings* → **Clipboard → Allow**, then reload. |
+| Grant it once (Firefox) | Set `dom.events.asyncClipboard.readText` to `true` in `about:config`, or click the **Paste** confirmation Firefox pops up. |
+| Skip the permission | **Shift + right-click** gives the browser's own context menu, whose Paste needs no permission. On Linux, **middle-click** pastes the primary selection. |
 
-**Running M code.** With a `.m` file open, hit *Run Code* (the ▷ button, or
-`Ctrl+Alt+N`) — Code Runner's `.m` executor is wired to the baked `m-run` helper,
-which adds the file's directory to `$ydb_routines`, links it on the local
-YottaDB, and executes the routine's top label (`do ^<name>`), printing its
-output. (So `/work` must be writable — YDB writes the `.o` object beside the
-`.m`.) The Test Explorer (m-vscode) runs `*TST.m` suites; Code Runner runs a
-routine.
+---
 
-```bash
-# serve the IDE on localhost only; mount your project at /work
-docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
-# then open http://127.0.0.1:8080  → editor + terminal + `m test`, offline
-```
+## Working on your own code
 
-`-v "$PWD":/work` mounts **the directory you run the command from** — so `cd`
-into your project first, or pass an explicit path
-(`-v /abs/path/to/project:/work`). code-server opens `/work`, so whatever you
-mount there is what the file explorer shows.
+Mount your project at `/work` and it becomes the first folder in the explorer.
+Two things are worth knowing before you do:
 
-**Relaunching (free port 8080 automatically).** code-server runs in the
-foreground, so a previous container keeps holding the port until you stop it
-(`Bind for 127.0.0.1:8080 failed: port is already allocated`). Give the
-container a fixed `--name` and force-remove it first — this frees the port every
-time and touches nothing else:
+**`/work` must be writable.** YottaDB writes the compiled `.o` object beside
+each `.m` source when a routine runs, so running M out of a read-only mount
+fails. This also means running code from a git working tree drops `.o` files
+into it — add `*.o` to that project's `.gitignore`, or work from a scratch
+directory.
+
+**Your routines need to be on the engine's routine path.** The baked libraries,
+examples and test suites are already there. A project of your own is not:
 
 ```bash
-docker rm -f m-devbox 2>/dev/null
-docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
+export ydb_routines="/work $ydb_routines"   # your dir first
+m test /work/tests                          # now your suite resolves
 ```
 
-`--name m-devbox` gives the container a **fixed name**, and `docker rm -f
-m-devbox` removes the previous one by that name before relaunching. The name is
-the stable key on purpose — it does not drift when the image tag bumps with a
-new version (unlike filtering on `m-devbox:0.1.0-local`). Always launch through
-this (or the function below) so every run carries the name.
+The *Run Code* button handles this for you (its helper adds the file's own
+directory before running), so this only matters for `m test` and hand-run
+routines from a directory you mounted yourself.
 
-Drop this in your shell profile (`~/.bashrc`) to relaunch from any project dir
-with one word — it always starts fresh:
+### Running M
 
 ```bash
-mdevbox() {
-  docker rm -f m-devbox >/dev/null 2>&1
-  docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work m-devbox:0.1.0-local
-}
+m test /opt/examples/hello/tests     # a suite, with assertion counts
+m test /opt/msl/tests/STDSTRTST.m    # a single MSL suite
+m lint /work/MYROUTINE.m             # the linter behind the editor squiggles
+m vista exec 'write $$sha256^STDCRYPTO("abc")'    # one-off M through the driver
+m lib list                           # what libraries are installed
 ```
 
-Use **`http://127.0.0.1:8080`**, not `http://localhost:8080`: the port is
-published on IPv4 loopback only, and `localhost` often resolves to IPv6 (`::1`)
-first — which has no listener, so the browser shows `ERR_CONNECTION_REFUSED`
-even though code-server is serving fine.
+No `--engine` or `--transport` flags are needed: the image bakes `M_ENGINE=ydb`
+and the driver resolves the local engine sitting beside you.
 
-Bind to `127.0.0.1` (as above): code-server runs with `--auth none` for a
-zero-friction local box, so do not expose the port to a network.
+⚠️ **`m vista exec` reports the engine's *process* status, and YottaDB exits 0
+even when it reports an M error** (an unresolvable routine, for instance). So a
+green exit code does not mean your command worked — read the output. This is a
+known open toolchain question, tracked as PR-28.
 
-## Using the image headlessly
+### What is and is not in the terminal
 
-The IDE is only the default command — pass your own and it runs headless (this
-is how every gate runs):
+Present: the `m` toolchain, `git`, `bash`, `sha256sum` and the usual coreutils.
 
-```bash
-# a known-answer digest through the driver seam, on a bare `docker run`
-docker run --rm m-devbox:0.1.0-local \
-  m vista exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")'
-
-# run an MSL suite
-docker run --rm m-devbox:0.1.0-local m test --engine ydb /opt/msl/tests/STDSTRTST.m
-```
+**Absent by design:** `python3`, `curl`, `wget`, `make`, `gcc`, `less`, `vim`,
+`nano`. This is a runtime, not a build box — the compiler lives only in a
+throwaway build stage, and the IDE is your editor. If you need one of these for
+your own work, that is a case for changing the image, not for installing it
+into a running container (which vanishes on the next `docker run --rm`).
 
 ### Running as a non-root user
-
-The image supports three shapes, and refuses a fourth **loudly** rather than
-failing three layers down:
 
 | Invocation | Result |
 |---|---|
@@ -150,75 +178,106 @@ failing three layers down:
 | `--user <any-uid>:0` | works — the entrypoint adds the passwd entry |
 | `--user <any-uid>:<non-zero-gid>` | **refuses, exit 78**, naming the fix |
 
-Why gid 0 matters: the toolchain derives its run-lock home from `/etc/passwd`,
-never `$HOME`, and fails closed — deliberately, so a divergent `$HOME` cannot
-split the run-lock's serialization domain. A `CGO_ENABLED=0` binary reads
-`/etc/passwd` with no NSS fallback, so a uid with no entry there refuses *every*
-engine verb. The image therefore guarantees the entry: group 0 owns a
-`g=u`-mode `/etc/passwd` (the standard arbitrary-uid container recipe) and
-`scripts/entrypoint.sh` appends the row for whatever uid it is run as. For
-VS Code Dev Containers the ordinary path is `remoteUser: devbox` with
-`updateRemoteUserUID: true`, which keeps a real passwd entry throughout.
+Why group 0 matters: the toolchain derives its run-lock home from `/etc/passwd`
+rather than `$HOME`, and fails closed — deliberately, so a divergent `$HOME`
+cannot split the run-lock's serialization domain. A `CGO_ENABLED=0` binary
+reads `/etc/passwd` with no NSS fallback, so a uid absent from it is refused
+every engine verb. The image guarantees the entry: group 0 owns a `g=u`-mode
+`/etc/passwd`, and the entrypoint appends the row for whatever uid it runs as.
 
-## What is in the image
+---
 
-| Layer | Basis |
+## Adding, replacing, or writing libraries
+
+MSL and FSL were installed with `m lib`, the same verb available to you:
+
+| Verb | What it does |
 |---|---|
-| Debian trixie-slim | pinned by digest |
-| YottaDB r2.06 | installed in-build by the project's own `ydbinstall.sh`, pinned by commit + `sha256sum -c` |
-| 5 native callouts (`std_compress`, `std_crypto`, `std_csprng`, `std_fs`, `std_http`) | compiled during `docker build` by a throwaway gcc stage running `m callouts install`; no compiler ships in the final image |
-| `m` + `m-ydb` | rebuilt from the local checkouts at stage time |
-| MSL + FSL, installed | `m lib install` at build time — durable, ledgered, verifiable, reversible |
-| MSL + FSL, readable (`/opt/msl`, `/opt/fsl`) | source + per-module docs + guides + licence, copied from the same two repos at stage time |
-| `examples/hello`, `examples/lib-demo` | the starter project and the library install/uninstall tour |
+| `m lib list` | what the engine's ledger says is installed |
+| `m lib install --name <n> <path>/src` | capture pre-images, compile onto the routine path, verify, commit — idempotent |
+| `m lib verify <n>` | re-derive from the engine, compare to the ledger |
+| `m lib uninstall <n>` | restore pre-images, delete what it added, drop the ledger row |
 
-### Adding, replacing, or writing libraries
+A library is a two-part unit: `src/*.m` plus `dist/<name>-manifest.json`, which
+declares exactly which routines belong to it. Give your own project that shape
+and it installs like any other. `bash /opt/examples/lib-demo/tour.sh` walks the
+whole cycle, and [examples/lib-demo/README.md](examples/lib-demo/README.md)
+explains the unit.
 
-The image ships a runnable answer to "how do I get my own library onto this
-engine?" — run it in a terminal:
+The MSL and FSL folders in the IDE are for **reading**. The routines that
+actually run were installed onto the engine; those trees are documentation
+copies kept byte-identical to both their home repositories and the resident
+routines (gate G21). Edit a library in its own repo — `m-stdlib` or `f-stdlib`
+— and rebuild the image.
+
+---
+
+## For maintainers: building and gating
+
+Two clocks, deliberately separated:
+
+| Clock | Targets | Network |
+|---|---|---|
+| **sync time** | `make stage` · `make build` · `make rebuild` · `make archive` | allowed, deliberate, never automatic |
+| **gate time** | `make check` · `make verify` · `make load` | **none** |
 
 ```bash
-bash /opt/examples/lib-demo/tour.sh
+make build     # sync-time: assemble the context from pins, docker build
+make check     # offline: pins + waterline + docs + shell + the full battery
+make load      # offline: restore the image from the org archive
 ```
 
-It installs a tiny library, calls it, verifies it, uninstalls it, and shows the
-engine back at its starting state — the same `m lib install` this image used
-for MSL and FSL. See
-[examples/lib-demo/README.md](examples/lib-demo/README.md) for the unit shape
-(`src/*.m` + `dist/<name>-manifest.json`) your own library needs.
+`make check` needs the image present and never fetches it; if it is missing,
+`make load` restores it from `~/data/vista-forge/images`. The archive, not a
+rebuild, is the recovery path.
 
-Measured sizes and the exact pins are in the
-[image dossier](docs/design/image-dossier.md).
+**Nothing is vendored in this repo.** Every binary, routine and document is
+single-sourced in its owning repository and assembled into an ephemeral build
+context by `scripts/stage-context.sh`. Always restage before building — a
+`docker build` against a stale context silently produces a different program
+than the one you tested.
 
-## How this repo is organised
+The acceptance battery is **G1–G24**, and every engine call in it goes through
+the driver seam (`m vista exec` / `m test`), never a raw `docker exec`. Gates
+worth knowing: G9 library ledger, G10 FileMan, G12 the example suite, G16
+read-only rootfs, G17 offline IDE boot, G21 library reading trees, G22 the
+install/uninstall round trip, G23 the IDE opens trusted, G24 extension
+ownership.
+
+`make sweep` (the full MSL run) is a **measurement, not a gate**: 11 suites
+need a live MinIO service and fail without one.
 
 ```
-Dockerfile              the image, pins in its header
-scripts/stage-context.sh    assemble the ephemeral build context (sync-time)
-scripts/entrypoint.sh       the arbitrary-uid passwd guarantee
-scripts/verify-devbox.sh    the acceptance battery G1–G22 (driver seam only)
-scripts/check-pins.sh       offline drift gate: header pins == build pins
-scripts/devbox.code-workspace  the baked multi-root workspace (/work + libraries)
-examples/hello/             the baked starter project (MD-D2)
-examples/lib-demo/          installing + uninstalling libraries (MD-D9)
-docs/design/image-dossier.md  measured contents, sizes, and the sweep baseline
+Dockerfile                    the image, pins in its header
+scripts/stage-context.sh      assemble the build context (sync-time)
+scripts/verify-devbox.sh      the acceptance battery G1–G24
+scripts/check-pins.sh         offline drift gate: header pins == build pins
+scripts/devbox.code-workspace the multi-root workspace the IDE opens
+examples/hello/               the starter project
+examples/lib-demo/            installing and uninstalling libraries
+docs/design/image-dossier.md  measured contents, sizes, sweep baseline
 ```
 
-Nothing is vendored. Every source lands in an **ephemeral** build context
-assembled from the sibling repos — see [CLAUDE.md](CLAUDE.md) for why, and for
-the sync-time / gate-time split that keeps the gate offline.
+---
 
-## The gate, and what is deliberately not gated
+## Troubleshooting
 
-`make check` runs offline and includes the acceptance battery. `make sweep`
-(the full MSL run) is a **measurement, not a gate**: 11 suites in
-`STDS3MINIOTST` need a live MinIO service and fail without one, so the target
-can never be green here. The expected numbers and how to read a change in them
-are in the [image dossier](docs/design/image-dossier.md).
+| Symptom | Cause and fix |
+|---|---|
+| `port is already allocated` | a previous container still holds 8080 — `docker rm -f m-devbox`, or use the `mdevbox` function above |
+| `ERR_CONNECTION_REFUSED` | you used `localhost` (IPv6) — use `http://127.0.0.1:8080` |
+| Clipboard error on paste | browser permission, not the image — see the clipboard table above |
+| A routine will not link | it is not on `$ydb_routines` — see "Working on your own code" |
+| `m test` reports "made no assertions" | same cause: the suite's directory is not on the routine path |
+| Green exit code, wrong result | `m vista exec` reports process status, not M errors — read the output (PR-28) |
+
+Live status for every prerequisite and open question is the
+[prerequisites tracker](../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md),
+not this README.
 
 ## License
 
 AGPL-3.0-or-later with a commercial option — see [LICENSE](LICENSE) and
-[NOTICE](NOTICE). The image assembles AGPL YottaDB and, from P2, public-domain
-VA FileMan; the combined-work disposition is a prerequisite of publication, not
-of building (tracker PR-17).
+[NOTICE](NOTICE). The image assembles AGPL YottaDB and public-domain VA
+FileMan; the combined-work disposition gates publication, not building
+(tracker PR-17).

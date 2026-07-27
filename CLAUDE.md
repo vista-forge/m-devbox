@@ -91,7 +91,7 @@ not an image tweak.
 | `arch-check` | `m arch check` — waterline + `repo.meta.json` shape |
 | `docs-gate` | link + layout |
 | `shell-gate` | `bash -n` / `sh -n` floor on every shipped script, plus shellcheck when installed |
-| `verify` | the acceptance battery G1–G22 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2; G21 library reading trees + G22 the `lib-demo` round trip — MD-D9) |
+| `verify` | the acceptance battery G1–G24 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2; G21 library reading trees + G22 the `lib-demo` round trip — MD-D9; G23 the IDE opens trusted + G24 extension set & M-language ownership — MD-D10) |
 
 `make sweep` (the full MSL suite run) is a **measurement, not a gate** — 11
 suites in `STDS3MINIOTST` fail without a MinIO service, so it can never be

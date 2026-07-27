@@ -59,6 +59,21 @@ CODE_RUNNER_VERSION=0.12.2
 CODE_RUNNER_VSIX_SHA256=99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe
 CODE_RUNNER_URL="https://open-vsx.org/api/formulahendry/code-runner/${CODE_RUNNER_VERSION}/file/formulahendry.code-runner-${CODE_RUNNER_VERSION}.vsix"
 
+# Companion extensions (MD-D10). Chosen under ONE rule: nothing may claim the
+# M language. m-vscode owns language id `mumps` + `.m`/`.mac`/`.int` and is the
+# only source of M diagnostics, so a second M extension — however good — would
+# fight it. VERIFIED 2026-07-26 by reading each .vsix's own
+# contributes.languages: neither claims those file types, and Error Lens
+# contributes no language at all (it RENDERS diagnostics other extensions
+# produce, which is exactly why it amplifies `m lint` instead of duplicating it).
+ERRORLENS_VERSION=3.28.0
+ERRORLENS_VSIX_SHA256=10ab65469dd21cab7b177e9fc97ad7e85604b75c9ca140e5e8bdd9fc23f7119d
+ERRORLENS_URL="https://open-vsx.org/api/usernamehw/errorlens/${ERRORLENS_VERSION}/file/usernamehw.errorlens-${ERRORLENS_VERSION}.vsix"
+
+RAINBOWCSV_VERSION=3.24.1
+RAINBOWCSV_VSIX_SHA256=0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a
+RAINBOWCSV_URL="https://open-vsx.org/api/mechatroner/rainbow-csv/${RAINBOWCSV_VERSION}/file/mechatroner.rainbow-csv-${RAINBOWCSV_VERSION}.vsix"
+
 mkdir -p "$CTX"
 cp "$REPO/Dockerfile"           "$CTX/"
 cp "$HERE/entrypoint.sh"        "$CTX/"
@@ -96,6 +111,19 @@ if ! echo "${CODE_RUNNER_VSIX_SHA256}  ${CR_VSIX}" | sha256sum -c - >/dev/null 2
   echo "${CODE_RUNNER_VSIX_SHA256}  ${CR_VSIX}" | sha256sum -c -
 fi
 cp "$CR_VSIX" "$CTX/code-runner.vsix"
+
+# ── companion extensions (MD-D10), same cached + checksum-verified pattern ────
+stage_vsix() { # $1 = cache stem, $2 = version, $3 = sha256, $4 = url, $5 = ctx name
+  local f="$CS_CACHE/$1_$2.vsix"
+  if ! echo "$3  $f" | sha256sum -c - >/dev/null 2>&1; then
+    echo "stage: fetching $1 $2 (sync-time, pinned, Open VSX)"
+    wget -q -O "$f" "$4"
+    echo "$3  $f" | sha256sum -c -
+  fi
+  cp "$f" "$CTX/$5"
+}
+stage_vsix errorlens   "$ERRORLENS_VERSION"  "$ERRORLENS_VSIX_SHA256"  "$ERRORLENS_URL"  errorlens.vsix
+stage_vsix rainbow-csv "$RAINBOWCSV_VERSION" "$RAINBOWCSV_VSIX_SHA256" "$RAINBOWCSV_URL" rainbow-csv.vsix
 
 # ── toolchain binaries, rebuilt from the local checkouts ────────────────────
 ( cd "$FORGE/m-cli" && go build -o "$CTX/m" . )

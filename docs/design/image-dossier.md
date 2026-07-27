@@ -2,7 +2,7 @@
 id: m-devbox-image-dossier
 title: m-devbox image dossier — measured contents, sizes, and the sweep baseline
 type: design
-status: current (P1, 2026-07-22)
+status: current (P3, 2026-07-26)
 created: 2026-07-22
 tags: [m-devbox, image, measurements, sizes, sweep, baseline]
 ---
@@ -15,6 +15,48 @@ file is the one that was measured — re-measure, then correct the others.
 
 **Do not update a row by editing the number.** Re-run the command, paste what
 it printed, and move the date.
+
+## The image (P3 — IDE, library reading trees, companions) — 2026-07-26
+
+The current image. The P2 section below is retained as the measurement it was,
+per this file's own rule; it is not the image you get today.
+
+| | |
+|---|---|
+| Tag | `m-devbox:0.1.0-local` |
+| Image ID | `sha256:7b9afd194a9ec3c26c0c8a6205524591dcfcf9a729c9879b75288e861a5963b8` |
+| Built | 2026-07-26, `make build` (MD-D9 reading trees + MD-D10 companions/git) |
+| Layer content | **509.6 MB** (`docker image inspect --format '{{.Size}}'` → 509,599,047) |
+| Unpacked on disk | **1.72 GB** (`docker image ls` / `docker system df -v`, containerd snapshotter; 1.611 GB unique + 112.8 MB shared) |
+| Archive | **477 MB** compressed (`m-devbox_0.1.0-local.tar.zst`) |
+
+⚠️ **Three numbers, three different questions — do not collapse them.** The P2
+row below says "265 MB (`docker image ls`)"; today the same command says
+1.72 GB while `inspect` says 509.6 MB. That is not drift in one metric, it is
+two metrics answering different questions (sum of layer content vs unpacked
+snapshot footprint), on top of real growth. Quote the metric with its command,
+as above, or the next reader will "correct" the wrong one.
+
+**Component sizes, measured inside the image** (`du -sh`):
+
+| Path | Size | What |
+|---|---|---|
+| `/usr/lib/code-server` | 645 MB | the IDE — by far the largest component |
+| `/opt/lib/r` | 20 MB | every resident routine + object (906 `.m`: MSL 40, FSL 7, FileMan, `%`-routines) |
+| `/opt/yottadb` | 9.6 MB | the engine |
+| `/data` | 5.6 MB | the VistA-sized database, incl. the `^mlib` ledger |
+| `/opt/code-server/extensions` | 7.3 MB | four baked extensions |
+| `/opt/msl` | 2.9 MB | MSL reading tree — 40 `.m`, 47 doc pages (modules + guides) |
+| `/opt/fsl` | 276 KB | FSL reading tree — 7 `.m`, 8 doc pages |
+| `/opt/examples` | 136 KB | `hello` + `lib-demo` |
+| `/opt/stdlib` | 120 KB | the five native callout `.so` + `.xc` |
+
+**What this wave added over P2:** code-server 4.130.0 (VS Code 1.130.0) with
+four extensions — m-vscode 0.5.0, Code Runner 0.12.2, Error Lens 3.28.0,
+Rainbow CSV 3.24.1 — plus `git` 2.47.3 (~32 MB with the two extensions), the
+MSL/FSL reading trees (+2.5 MB) and `examples/lib-demo`.
+
+Acceptance: **G1–G24 green**, `make check` rc=0.
 
 ## The image (P2 — the bake)
 

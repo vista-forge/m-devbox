@@ -41,6 +41,10 @@
 #              sha256 2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851
 #   code-runner formulahendry.code-runner v0.12.2 (Open VSX .vsix)
 #              sha256 99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe
+#   errorlens  usernamehw.errorlens v3.28.0 (Open VSX .vsix)
+#              sha256 10ab65469dd21cab7b177e9fc97ad7e85604b75c9ca140e5e8bdd9fc23f7119d
+#   rainbow-csv mechatroner.rainbow-csv v3.24.1 (Open VSX .vsix)
+#              sha256 0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a
 #   FileMan    WorldVistA/VistA-VEHU-M @ 62622e63fc7dffad27fc79f107fd7689c2ac4eff
 #              (Packages/VA FileMan/Routines) — the pin lives in
 #              vista-fileman/scripts/seed/source.pin and every routine byte is
@@ -294,11 +298,21 @@ COPY m-vscode/m-vscode.vsix /opt/m-vscode/m-vscode.vsix
 # Late layer: it does not invalidate the expensive P2 bake (FileMan, m lib).
 COPY code-server.deb /tmp/code-server.deb
 COPY code-runner.vsix /opt/code-runner/code-runner.vsix
+COPY errorlens.vsix /opt/code-runner/errorlens.vsix
+COPY rainbow-csv.vsix /opt/code-runner/rainbow-csv.vsix
 RUN set -e; \
     echo "2df0f7718a1e6ac090fa39226c1a291453403e3ca2e636804695648cdb24a851  /tmp/code-server.deb" | sha256sum -c -; \
     echo "99246afaaff6bedec962976ea2cdd07e70ddd58b840666fdcf67fe21e3513dbe  /opt/code-runner/code-runner.vsix" | sha256sum -c -; \
+    echo "10ab65469dd21cab7b177e9fc97ad7e85604b75c9ca140e5e8bdd9fc23f7119d  /opt/code-runner/errorlens.vsix" | sha256sum -c -; \
+    echo "0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a  /opt/code-runner/rainbow-csv.vsix" | sha256sum -c -; \
     apt-get update; \
     apt-get install -y --no-install-recommends /tmp/code-server.deb; \
+    # git (MD-D10): code-server already SHIPS the built-in Git extension, so \
+    # the whole Source Control panel — stage, diff, blame, history — is present \
+    # but inert without the binary. A dev environment where you cannot commit \
+    # the project you mounted is not finished. --no-install-recommends keeps it \
+    # to the 12-package core (no perl docs, no gui tools). \
+    apt-get install -y --no-install-recommends git; \
     rm -f /tmp/code-server.deb; \
     rm -rf /var/lib/apt/lists/*; \
     # Bake BOTH extensions into a read-only extensions dir, OFFLINE from the \
@@ -309,10 +323,18 @@ RUN set -e; \
       --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
     code-server --install-extension /opt/code-runner/code-runner.vsix \
       --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
+    code-server --install-extension /opt/code-runner/errorlens.vsix \
+      --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
+    code-server --install-extension /opt/code-runner/rainbow-csv.vsix \
+      --extensions-dir /opt/code-server/extensions --user-data-dir /tmp/cs-build; \
     code-server --list-extensions --extensions-dir /opt/code-server/extensions \
       | grep -qi 'vista-forge.m-vscode'; \
     code-server --list-extensions --extensions-dir /opt/code-server/extensions \
       | grep -qi 'formulahendry.code-runner'; \
+    code-server --list-extensions --extensions-dir /opt/code-server/extensions \
+      | grep -qi 'usernamehw.errorlens'; \
+    code-server --list-extensions --extensions-dir /opt/code-server/extensions \
+      | grep -qi 'mechatroner.rainbow-csv'; \
     rm -rf /tmp/cs-build; \
     # gid-0 writable so an arbitrary uid (PR-6) can update code-server state. \
     chgrp -R 0 /opt/code-server; chmod -R g=u /opt/code-server
