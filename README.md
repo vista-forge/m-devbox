@@ -262,14 +262,46 @@ need a live MinIO service and fail without one.
 The strategy is **publish the artifact, not the build**: the image is produced
 here by the pinned, gated `make build` and pushed as-is, so what a stranger
 runs is exactly what G1–G24 verified. Docker Hub does not build this repo and
-cannot — nothing is vendored, and the sibling repositories it assembles from
+could not — nothing is vendored, and the sibling repositories it assembles from
 are private.
 
-`make publish` therefore **refuses** until the publication prerequisites are
-ruled (VA licence posture, Docker Hub org registration, and the combined-work
-disposition — tracker PR-15/16/17). When they are, `make publish PUBLISH_OK=1`
-re-runs the full battery against the exact image before anything leaves the
-machine. Licence inventory: [NOTICE](NOTICE).
+**Channel: `docker.io/vista-forge/m-devbox`** — a free personal Docker Hub
+namespace. Docker Hub's free tier no longer covers *organizations*, but a free
+personal account still allows unlimited **public** repositories, and the
+username matches the GitHub org exactly.
+
+**One-time setup.** Create a Personal Access Token on Docker Hub (*Account
+Settings → Personal access tokens*, Read/Write scope), then put it in the org's
+single credential file — never in a forge secret store:
+
+```bash
+# ~/data/vista-forge/auth.env   (chmod 600, outside every repo, direnv-loaded)
+DOCKERHUB_USER=vista-forge
+DOCKERHUB_TOKEN=dckr_pat_...
+```
+
+**Every publish.**
+
+```bash
+make build                                   # sync-time: the pinned, gated build
+make check                                   # offline: G1–G24 must be green
+echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
+make publish PUBLISH_OK=1                    # re-verifies, then tags + pushes
+```
+
+`make publish` refuses twice before it can do damage: once unless `PUBLISH_OK=1`
+is set explicitly, and again if you are not logged in — both *before* anything
+is tagged. When it does run, it re-runs the whole acceptance battery against the
+exact image being pushed, then prints the resulting **digest**.
+
+**There is no `latest` tag, deliberately.** A mutable tag is how this project
+nearly lost a working IRIS engine: `latest` moved underneath it and the only
+good copy survived by luck. Publish immutable version tags
+(`make publish PUBLISH_TAG=0.2.0`) and tell consumers to pin the digest that the
+push prints.
+
+Licence inventory for anything you distribute: [NOTICE](NOTICE), also baked into
+the image at `/opt/licenses/`.
 
 ```
 Dockerfile                    the image, pins in its header

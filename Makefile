@@ -95,31 +95,53 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 #
 # `publish` REFUSES until the publication prerequisites are ruled, because a
 # push is irreversible in practice: the digest is public the moment it lands.
-#   PR-15  VA licence-posture check — not run
-#   PR-16  Docker Hub org not registered; creds belong in ~/data/vista-forge/auth.env
-#   PR-17  combined-work disposition — DRAFT at
-#          docs/licensing/m-devbox-combined-work-disposition.md, not ruled
-# Clear them, then set PUBLISH_OK=1 for the run that actually pushes.
-REGISTRY ?= docker.io/vistaforge
+# CHANNEL: docker.io/vista-forge — the owner's PERSONAL Docker Hub namespace
+# (ruled 2026-07-27). Docker Hub's free tier no longer covers ORGANIZATIONS, but
+# a free personal account still allows unlimited PUBLIC repositories, and the
+# username `vista-forge` matches the GitHub org exactly. Nothing else about the
+# 2026-07-21 channel ruling changes: same registry, same install-time argument,
+# no new vendor, no rule to overturn.
+#
+#   PR-15  VA licence posture — ✅ CLOSED 2026-07-26 (FileMan measured Apache-2.0)
+#   PR-17  combined-work disposition — ✅ RULED 2026-07-26
+#   PR-16  credentials not yet in ~/data/vista-forge/auth.env (never a forge
+#          secret store), and no first push recorded — THE LAST BLOCKER
+# Clear it, then set PUBLISH_OK=1 for the run that actually pushes.
+#
+# NO `latest` TAG, deliberately. A mutable tag is how this org lost a working
+# IRIS image ([[iris-community-hub-rebuild-breaks-boot]]): `latest` moved under
+# it and the only good copy survived by luck. Publish immutable version tags and
+# let consumers pin a digest, which this target prints after the push.
+REGISTRY ?= docker.io/vista-forge
 PUBLISH_TAG ?= 0.1.0
 
 publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled)
 	@if [ "$(PUBLISH_OK)" != "1" ]; then \
-	  echo "publish: REFUSED — publication prerequisites are not ruled."; \
-	  echo "  PR-15 VA licence-posture check ....... not run"; \
-	  echo "  PR-16 Docker Hub org ................. not registered"; \
-	  echo "  PR-17 combined-work disposition ...... DRAFT, not ruled"; \
-	  echo "        docs/licensing/m-devbox-combined-work-disposition.md"; \
+	  echo "publish: REFUSED — this is a one-way door, so it needs PUBLISH_OK=1."; \
+	  echo "  PR-15 VA licence posture ............. OK  closed 2026-07-26"; \
+	  echo "  PR-17 combined-work disposition ...... OK  ruled  2026-07-26"; \
+	  echo "  PR-16 credentials in auth.env ........ check below"; \
+	  echo "  target: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)  (no 'latest' tag, by design)"; \
 	  echo "  amd64 only — arm64 unverified (PR-7); Apple Silicon runs emulated."; \
-	  echo "  When ruled: make publish PUBLISH_OK=1"; \
+	  echo "  When ready: make publish PUBLISH_OK=1"; \
 	  exit 2; \
 	fi
 	@docker image inspect "$(IMAGE)" >/dev/null 2>&1 || { echo "publish: no local image $(IMAGE) — run 'make build' first"; exit 1; }
-	@echo "publish: verifying the exact image before it leaves this machine"
+	@who="$$(docker system info --format '{{.Username}}' 2>/dev/null)"; \
+	 if [ -z "$$who" ]; then \
+	   echo "publish: REFUSED — not logged in to Docker Hub."; \
+	   echo "  echo \"\$$DOCKERHUB_TOKEN\" | docker login -u \"\$$DOCKERHUB_USER\" --password-stdin"; \
+	   echo "  (both come from ~/data/vista-forge/auth.env via direnv — never a forge secret store)"; \
+	   exit 3; \
+	 fi; \
+	 echo "publish: authenticated as $$who"
+	@echo "publish: re-verifying the EXACT image before it leaves this machine"
 	scripts/verify-devbox.sh "$(IMAGE)"
 	docker tag "$(IMAGE)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
 	docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
-	@docker image inspect --format 'published: {{.Id}} as $(REGISTRY)/m-devbox:$(PUBLISH_TAG)' "$(IMAGE)"
+	@echo "published: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
+	@echo "RECORD THIS DIGEST — it is the immutable identity consumers should pin:"
+	@docker image inspect --format '{{range .RepoDigests}}  {{.}}{{"\n"}}{{end}}' "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" 2>/dev/null || true
 
 load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
 	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \
