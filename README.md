@@ -264,6 +264,13 @@ context by `scripts/stage-context.sh`. Always restage before building — a
 `docker build` against a stale context silently produces a different program
 than the one you tested.
 
+⚠️ **This repository is public, but it is not self-contained.** `make build`
+needs six sibling repositories checked out beside it (`m-cli`, `m-ydb`,
+`m-stdlib`, `f-stdlib`, `fileman`, `m-vscode`), and `make check` shells out to
+the organization's `.github` scripts. Those are not public today, so a bare
+clone can be *read* but not built or gated. The published image is the artifact
+intended for use; this repo is how it is made.
+
 The acceptance battery is **G1–G24**, and every engine call in it goes through
 the driver seam (`m vista exec` / `m test`), never a raw `docker exec`. Gates
 worth knowing: G9 library ledger, G10 FileMan, G12 the example suite, G16

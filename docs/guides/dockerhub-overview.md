@@ -4,10 +4,11 @@ The source of truth for what appears on
 `hub.docker.com/r/rafaelrichards/m-devbox`. Paste the body below into the
 repository's **Overview**; keep this file and the page in step.
 
-**Why this file exists at all:** the GitHub repository is private, so the Hub
-page is the *only* public documentation for the image. Everything a stranger
-needs to start, and every limitation they are entitled to know about before
-pulling 509 MB, has to be on it.
+**Why this file exists at all:** the Hub page is the first and often only thing
+a stranger reads before pulling 509 MB. Everything needed to start, and every
+limitation they are entitled to know in advance, has to be on it. (The recipe
+repo went public 2026-07-27 so `image.source` resolves; the Hub page still
+carries the load, because nobody reads a GitHub repo before `docker run`.)
 
 **Short description** (100-char field):
 
@@ -115,10 +116,16 @@ contains all ten contributing repositories at the exact commits the image was
 built from, and the build is pin-reproducible — the module versions embedded in
 the shipped binaries are gated against the committed pins.
 
-> ⚠️ **BEFORE PUBLISHING:** replace this paragraph with the real location of the
-> corresponding-source bundle, and repoint `org.opencontainers.image.source` at
-> the same place. The GitHub URL currently in the label is a private repository
-> and 404s for the public — an AGPL source pointer that does not resolve is not
-> a source pointer. This is the last unresolved publication prerequisite.
+The image recipe — Dockerfile, staging, gates, examples — is public at
+<https://github.com/vista-forge/m-devbox>, which is where
+`org.opencontainers.image.source` points.
+
+> ⚠️ **BEFORE PUBLISHING:** name the location of the corresponding-source
+> bundle here. The recipe repo above is public, but the source of the *binaries
+> in the image* (the `m` toolchain, the driver, MSL and FSL, and their linked
+> libraries) is not yet — so the AGPL duty is not discharged by that link alone.
+> Either publish the bundle at a durable URL and name it here, or make those
+> repositories public too. This is the last unresolved publication
+> prerequisite.
 
 Not affiliated with or endorsed by the U.S. Department of Veterans Affairs.
