@@ -41,11 +41,6 @@ docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
 Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
 engine.
 
-> **Always name a version.** There is no `latest` tag: a plain
-> `docker pull rafaelrichards/m-devbox` fails with `manifest unknown`, on
-> purpose. Mutable tags are how reproducibility quietly dies, so every release
-> is immutable and pinnable by digest.
-
 ---
 
 ## The stack, from the metal up
@@ -97,13 +92,6 @@ This is what you will actually type:
 | `m coverage` | test coverage |
 | `m watch` | re-run tests as you edit |
 | `m lib` | install / verify / uninstall libraries on the engine |
-| `m vista exec` | evaluate one line of M against the live engine |
-
-The last one is misnamed, and it is worth saying so plainly rather than letting
-you discover it: **it has nothing to do with VistA and requires none of it.** It
-evaluates a line of M against whatever engine is attached — this image uses it
-on a bare YottaDB throughout. Read it as "evaluate"; the `vista` in the middle
-is a historical artifact of where the toolchain grew up.
 
 Twenty verbs in all; run `m` with no arguments to browse them.
 
@@ -194,9 +182,6 @@ Control works. Nothing is downloaded on first run.
   background. Re-run it — by design, and it cannot deadlock.
 - **`/work` must be writable** — YottaDB writes compiled objects beside your
   sources. Add `*.o` to your `.gitignore`.
-- **A green exit code from `m vista exec` is not proof of success.** YottaDB
-  exits 0 even when it reports an M error, so read the output. A fix is ruled
-  and pending.
 - **The first terminal paste may be refused** by your browser until you grant
   clipboard permission; `Shift`+right-click pastes without it.
 - The IDE runs **without authentication** — keep the port on loopback.
