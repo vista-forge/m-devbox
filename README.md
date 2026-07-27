@@ -265,10 +265,22 @@ runs is exactly what G1–G24 verified. Docker Hub does not build this repo and
 could not — nothing is vendored, and the sibling repositories it assembles from
 are private.
 
-**Channel: `docker.io/vista-forge/m-devbox`** — a free personal Docker Hub
+**Channel: `docker.io/rafaelrichards/m-devbox`** — a free personal Docker Hub
 namespace. Docker Hub's free tier no longer covers *organizations*, but a free
-personal account still allows unlimited **public** repositories, and the
-username matches the GitHub org exactly.
+personal account still allows unlimited **public** repositories.
+
+The username is fixed and cannot be changed, so **the namespace does not carry
+the project identity — the image does.** Every published image is labelled with
+its vendor, source repository, licence and documentation URL, so a consumer can
+ask the artifact itself rather than infer from the path:
+
+```bash
+docker inspect --format '{{json .Config.Labels}}' rafaelrichards/m-devbox:0.1.0
+# org.opencontainers.image.vendor    vista-forge
+# org.opencontainers.image.source    https://github.com/vista-forge/m-devbox
+# org.opencontainers.image.licenses  AGPL-3.0-or-later
+# org.vista-forge.licenses.path      /opt/licenses
+```
 
 **One-time setup.** Create a Personal Access Token on Docker Hub (*Account
 Settings → Personal access tokens*, Read/Write scope), then put it in the org's
@@ -276,7 +288,7 @@ single credential file — never in a forge secret store:
 
 ```bash
 # ~/data/vista-forge/auth.env   (chmod 600, outside every repo, direnv-loaded)
-DOCKERHUB_USER=vista-forge
+DOCKERHUB_USER=rafaelrichards
 DOCKERHUB_TOKEN=dckr_pat_...
 ```
 

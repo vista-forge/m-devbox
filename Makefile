@@ -95,10 +95,14 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 #
 # `publish` REFUSES until the publication prerequisites are ruled, because a
 # push is irreversible in practice: the digest is public the moment it lands.
-# CHANNEL: docker.io/vista-forge — the owner's PERSONAL Docker Hub namespace
+# CHANNEL: docker.io/rafaelrichards — the owner's PERSONAL Docker Hub namespace
 # (ruled 2026-07-27). Docker Hub's free tier no longer covers ORGANIZATIONS, but
-# a free personal account still allows unlimited PUBLIC repositories, and the
-# username `vista-forge` matches the GitHub org exactly. Nothing else about the
+# a free personal account still allows unlimited PUBLIC repositories. The
+# username is FIXED and cannot be changed, so the namespace does NOT carry the
+# vista-forge identity — the IMAGE does instead, via OCI labels
+# (org.opencontainers.image.vendor/source/licenses; see the Dockerfile). A
+# consumer runs `docker inspect` and learns who published it and where the
+# source lives, regardless of whose namespace it sits in. Nothing else about the
 # 2026-07-21 channel ruling changes: same registry, same install-time argument,
 # no new vendor, no rule to overturn.
 #
@@ -112,7 +116,7 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 # IRIS image ([[iris-community-hub-rebuild-breaks-boot]]): `latest` moved under
 # it and the only good copy survived by luck. Publish immutable version tags and
 # let consumers pin a digest, which this target prints after the push.
-REGISTRY ?= docker.io/vista-forge
+REGISTRY ?= docker.io/rafaelrichards
 PUBLISH_TAG ?= 0.1.0
 
 publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled)

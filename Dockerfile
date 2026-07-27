@@ -375,6 +375,23 @@ EXPOSE 8080
 # 0 with this set and exit 4 ENGINE_UNRESOLVED with it unset, so it cannot vanish.
 ENV M_ENGINE=ydb
 
+# ── OCI provenance labels ────────────────────────────────────────────────────
+# The published namespace is a personal Docker Hub account whose username is
+# fixed, so the REGISTRY PATH cannot carry the project identity. These labels
+# make the ARTIFACT carry it instead: `docker inspect` tells a consumer who
+# published this, where the source lives, and under what terms — which also
+# matters for the AGPL corresponding-source duty, since the image itself now
+# points at where to ask. Metadata only; no size cost worth measuring.
+LABEL org.opencontainers.image.title="m-devbox" \
+      org.opencontainers.image.description="Portable M (MUMPS) development environment: YottaDB, the m toolchain, MSL + FSL with source and docs, standalone VA FileMan, and a browser-served VS Code." \
+      org.opencontainers.image.vendor="vista-forge" \
+      org.opencontainers.image.source="https://github.com/vista-forge/m-devbox" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.documentation="https://github.com/vista-forge/m-devbox#readme" \
+      org.vista-forge.licenses.path="/opt/licenses" \
+      org.vista-forge.engine="yottadb-r2.06" \
+      org.vista-forge.platform="linux/amd64 (arm64 unverified)"
+
 WORKDIR /work
 ENTRYPOINT ["/usr/local/bin/devbox-entrypoint"]
 # Default command: serve code-server (PR-23 / MD-D8). This is only the DEFAULT —

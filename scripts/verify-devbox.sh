@@ -96,6 +96,11 @@
 #       the baked NOTICE matches the repo, and the shipped FileMan routines
 #       retain their Medsphere/Apache attribution. 774 of 861 are Apache-2.0,
 #       so §4(a)+(b) are obligations, not decoration.
+#   G26 The image carries its own provenance — OCI labels naming the vendor,
+#       source repo, licence and /opt/licenses path. The published namespace is
+#       a personal account whose username is fixed, so the registry path cannot
+#       carry identity; the artifact must, and image.source is where an AGPL
+#       recipient goes to ask for corresponding source.
 #   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
@@ -744,6 +749,36 @@ if [ "${G25C_OUT:-0}" -ge 700 ] 2>/dev/null; then
   echo "  ✓ $G25C_OUT shipped routines retain their Medsphere/Apache attribution notice"
 else
   fail "G25(c): attribution notices are missing from the shipped routines (found ${G25C_OUT:-0}, expected >=700) — Apache-2.0 §4(b)"
+fi
+
+echo "== G26: the image carries its own provenance (OCI labels) =="
+# The publication namespace is a personal Docker Hub account whose username is
+# fixed, so the registry PATH cannot say who published this or where the source
+# is. The ARTIFACT has to. These labels are the only identity that survives a
+# re-tag, a mirror, or a `docker save` handed to someone on a USB stick — and
+# `image.source` is where an AGPL recipient goes to ask for corresponding source.
+G26_OUT="$(docker image inspect --format '{{json .Config.Labels}}' "$IMG" 2>/dev/null \
+  | python3 -c '
+import json, sys
+want = {
+  "org.opencontainers.image.title": "m-devbox",
+  "org.opencontainers.image.vendor": "vista-forge",
+  "org.opencontainers.image.licenses": "AGPL-3.0-or-later",
+  "org.vista-forge.licenses.path": "/opt/licenses",
+}
+try:
+    got = json.load(sys.stdin) or {}
+except Exception:
+    print("LABELS_UNREADABLE"); raise SystemExit(1)
+bad = [f"{k}={got.get(k)!r} (want {v!r})" for k, v in want.items() if got.get(k) != v]
+if not got.get("org.opencontainers.image.source", "").startswith("https://"):
+    bad.append("image.source is not an https URL — an AGPL recipient cannot find the source")
+print("LABELS_BAD " + "; ".join(bad)) if bad else print("LABELS_OK")
+sys.exit(1 if bad else 0)' 2>&1)"; G26_RC=$?
+if [ "$G26_RC" -eq 0 ] && printf '%s' "$G26_OUT" | grep -q LABELS_OK; then
+  echo "  ✓ vendor, title, licence, source URL and the licences path are all declared on the image"
+else
+  fail "G26: OCI provenance labels (rc=$G26_RC)"$'\n'"$(printf '%s' "$G26_OUT" | tail -5)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
