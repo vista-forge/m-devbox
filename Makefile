@@ -28,7 +28,7 @@ IMAGE   ?= m-devbox:0.1.0-local
 CTX     ?= $(CURDIR)/.build-context
 ARCHIVE ?= $(HOME)/data/vista-forge/images
 
-.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive load clean
+.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish load clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | \
@@ -86,6 +86,40 @@ verify: ## Offline: the acceptance battery against the built image (driver seam 
 
 sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a gate — see README)
 	docker run --rm "$(IMAGE)" m test --engine ydb /opt/msl/tests
+
+# ── publication (sync-time, GATED — see the refusal below) ──────────────────
+# Strategy: we publish the ARTIFACT, not the build. The image is produced here
+# by the pinned, gated `make build` and pushed as-is, so what a stranger runs is
+# exactly what G1–G24 verified. Docker Hub does NOT build this repo (it cannot —
+# nothing is vendored, and five sibling repos are private).
+#
+# `publish` REFUSES until the publication prerequisites are ruled, because a
+# push is irreversible in practice: the digest is public the moment it lands.
+#   PR-15  VA licence-posture check — not run
+#   PR-16  Docker Hub org not registered; creds belong in ~/data/vista-forge/auth.env
+#   PR-17  combined-work disposition — DRAFT at
+#          docs/licensing/m-devbox-combined-work-disposition.md, not ruled
+# Clear them, then set PUBLISH_OK=1 for the run that actually pushes.
+REGISTRY ?= docker.io/vistaforge
+PUBLISH_TAG ?= 0.1.0
+
+publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled)
+	@if [ "$(PUBLISH_OK)" != "1" ]; then \
+	  echo "publish: REFUSED — publication prerequisites are not ruled."; \
+	  echo "  PR-15 VA licence-posture check ....... not run"; \
+	  echo "  PR-16 Docker Hub org ................. not registered"; \
+	  echo "  PR-17 combined-work disposition ...... DRAFT, not ruled"; \
+	  echo "        docs/licensing/m-devbox-combined-work-disposition.md"; \
+	  echo "  amd64 only — arm64 unverified (PR-7); Apple Silicon runs emulated."; \
+	  echo "  When ruled: make publish PUBLISH_OK=1"; \
+	  exit 2; \
+	fi
+	@docker image inspect "$(IMAGE)" >/dev/null 2>&1 || { echo "publish: no local image $(IMAGE) — run 'make build' first"; exit 1; }
+	@echo "publish: verifying the exact image before it leaves this machine"
+	scripts/verify-devbox.sh "$(IMAGE)"
+	docker tag "$(IMAGE)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
+	docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
+	@docker image inspect --format 'published: {{.Id}} as $(REGISTRY)/m-devbox:$(PUBLISH_TAG)' "$(IMAGE)"
 
 load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
 	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \

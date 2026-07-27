@@ -83,6 +83,16 @@ ls`), and **477 MB** as the compressed archive. Most of it is the IDE —
 code-server alone is 645 MB unpacked. Component-by-component detail:
 [image dossier](docs/design/image-dossier.md).
 
+### Platform support
+
+| Platform | Status |
+|---|---|
+| linux/amd64 | **verified** — the whole G1–G24 battery runs here |
+| linux/arm64 (incl. Apple Silicon) | **not verified.** The callout *compile* half is green under emulation, but YottaDB refuses to verify itself under qemu (it checks `$ydb_dist` against its own executable path and fails `YDBDISTUNVERIF`), so the engine cannot be trusted there. Real arm64 hardware is required to close this. |
+
+Running the amd64 image on Apple Silicon means emulation, with the engine in
+exactly the state above — treat it as unsupported rather than slow.
+
 ### The IDE and its extensions
 
 Four extensions are baked in and installed from local files at build time, so
@@ -246,6 +256,20 @@ ownership.
 
 `make sweep` (the full MSL run) is a **measurement, not a gate**: 11 suites
 need a live MinIO service and fail without one.
+
+### Publishing
+
+The strategy is **publish the artifact, not the build**: the image is produced
+here by the pinned, gated `make build` and pushed as-is, so what a stranger
+runs is exactly what G1–G24 verified. Docker Hub does not build this repo and
+cannot — nothing is vendored, and the sibling repositories it assembles from
+are private.
+
+`make publish` therefore **refuses** until the publication prerequisites are
+ruled (VA licence posture, Docker Hub org registration, and the combined-work
+disposition — tracker PR-15/16/17). When they are, `make publish PUBLISH_OK=1`
+re-runs the full battery against the exact image before anything leaves the
+machine. Licence inventory: [NOTICE](NOTICE).
 
 ```
 Dockerfile                    the image, pins in its header

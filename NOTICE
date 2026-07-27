@@ -7,7 +7,8 @@ vista-forge (see the vista-forge `docs` repo, licensing/COMMERCIAL-LICENSE.md).
 
 m-devbox — a portable, container-delivered M development environment: one
 pinned image carrying YottaDB, the five native m-stdlib callouts, the `m` /
-`m-ydb` toolchain, and the M Standard Library.
+`m-ydb` toolchain, the M and FileMan Standard Libraries, standalone VA FileMan,
+and a browser-served VS Code (code-server) with four extensions.
 
 ------------------------------------------------------------------------------
 Third-party components (assembled at build time, NOT vendored here)
@@ -16,6 +17,12 @@ Third-party components (assembled at build time, NOT vendored here)
 This repository contains no third-party source. Everything below is fetched or
 copied into an ephemeral build context by scripts/stage-context.sh and lands in
 the built image; each keeps its own license.
+
+Every license below was READ FROM THE ARTIFACT ITSELF (the installed file in
+the image, or the LICENSE inside the .vsix) on 2026-07-26 — not from memory and
+not from a marketplace listing. Re-verify when a pin moves.
+
+ENGINE AND BASE
 
   YottaDB (r2.06, pinned)                 — AGPL-3.0-or-later (YottaDB LLC).
       Installed at build time by the YottaDB project's own ydbinstall.sh,
@@ -28,12 +35,66 @@ the built image; each keeps its own license.
       installed into it (libcurl, libssl, zlib, libzstd) — the licenses of
       their respective Debian source packages.
 
-  m-stdlib (MSL routines + native callout sources) · m-cli (`m`) · m-ydb
-      — vista-forge, AGPL-3.0-or-later + commercial, same terms as this repo.
+  git (2.47.3, Debian package)            — GPL-2.0 (with BSD-3-clause
+      components), per /usr/share/doc/git/copyright in the image.
 
-The terms above govern the sources. How they COMBINE in a distributed image —
-notably vista-forge's dual-licensed code alongside AGPL YottaDB, and (from P2)
-public-domain VA FileMan — has NOT been assessed. That written disposition is
-a prerequisite of publication, not of building: prerequisites tracker PR-17,
-`../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md`.
-Nothing here is a legal conclusion about the combined work.
+APPLICATION AND DATA
+
+  VA FileMan 22.2                         — United States Government work,
+      PUBLIC DOMAIN (U.S. Department of Veterans Affairs). Obtained from the
+      WorldVistA/VistA-VEHU-M mirror at a pinned commit, with every routine
+      byte verified against a committed checksum manifest before the build.
+
+IDE
+
+  code-server (4.130.0)                   — MIT (Coder Technologies Inc.),
+      per /usr/lib/code-server/LICENSE in the image. It embeds the
+      open-source Code - OSS build of VS Code (MIT), not Microsoft's branded
+      binary distribution.
+
+  formulahendry.code-runner (0.12.2)      — MIT (Jun Han), per
+      extension/LICENSE.txt inside the .vsix. NOTE: this extension declares no
+      `license` field in its package.json; the license was read from the file.
+
+  usernamehw.errorlens (3.28.0)           — MIT.
+
+  mechatroner.rainbow-csv (3.24.1)        — MIT.
+
+VISTA-FORGE COMPONENTS (ours; same terms as this repo)
+
+  m-stdlib (MSL routines, native callout sources) · f-stdlib (FSL routines) ·
+  m-cli (`m`) · m-ydb · m-vscode (the .vsix)
+      — vista-forge, AGPL-3.0-or-later + commercial.
+
+------------------------------------------------------------------------------
+Combined-work status — NOT YET DISPOSITIONED
+------------------------------------------------------------------------------
+
+The terms above govern the sources individually. How they COMBINE in a
+distributed image has NOT been ruled. A draft analysis exists for review at
+`docs/licensing/m-devbox-combined-work-disposition.md` in the vista-forge
+`docs` repo; it is a DRAFT and is not a legal conclusion.
+
+Two points that bear on any distribution, stated here so they are not
+discovered late:
+
+  1. AGPL SOURCE OBLIGATION. The image contains AGPL-3.0-or-later software
+     (YottaDB) and vista-forge's own AGPL-licensed code. Distributing the image
+     carries the corresponding-source obligation for those components toward
+     the recipients. Publishing an image while its vista-forge sources remain
+     private does not remove that obligation — it has to be satisfied some
+     other way.
+
+  2. PUBLIC DOMAIN IS NOT A LICENSE. VA FileMan carries no license terms
+     because it is a U.S. Government work; it imposes no conditions, but it
+     also grants no warranty and it does not alter the obligations above.
+
+Publication of the image is gated on that disposition plus the VA
+licence-posture check — prerequisites tracker PR-15 / PR-17, in the `docs`
+repo. Building and using the image locally is not gated.
+
+Not baked, and why (recorded so the decision is not silently revisited):
+`alefragnani.Bookmarks` was evaluated as a companion extension and declares
+GPL-3.0, which would add copyleft obligations to the IDE layer for a
+convenience feature. It was refused on size grounds first; the license is a
+second reason.
