@@ -28,7 +28,7 @@ IMAGE   ?= m-devbox:0.1.0-local
 CTX     ?= $(CURDIR)/.build-context
 ARCHIVE ?= $(HOME)/data/vista-forge/images
 
-.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish load clean
+.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish source-bundle load clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | \
@@ -146,6 +146,9 @@ publish: ## SYNC-TIME: push the built image (REFUSES until PR-15/16/17 are ruled
 	@echo "published: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
 	@echo "RECORD THIS DIGEST — it is the immutable identity consumers should pin:"
 	@docker image inspect --format '{{range .RepoDigests}}  {{.}}{{"\n"}}{{end}}' "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" 2>/dev/null || true
+
+source-bundle: ## Corresponding source for the published image (AGPL duty; refuses on dirt or skew)
+	bash scripts/source-bundle.sh --image "$(IMAGE)" --tag "$(PUBLISH_TAG)" $(if $(DIGEST),--digest "$(DIGEST)",)
 
 load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
 	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \

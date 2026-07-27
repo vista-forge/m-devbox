@@ -315,6 +315,40 @@ push prints.
 Licence inventory for anything you distribute: [NOTICE](NOTICE), also baked into
 the image at `/opt/licenses/`.
 
+### Corresponding source (required by the AGPL)
+
+The image ships AGPL software — YottaDB and vista-forge's own code — so whoever
+pulls it is entitled to the corresponding source. **That duty does not depend on
+our repositories being public**, so every published image gets a source bundle
+published beside it:
+
+```bash
+make source-bundle                     # → ~/data/vista-forge/source-bundles/
+make source-bundle DIGEST=sha256:...   # after publishing, bind it to the digest
+```
+
+The bundle is a single `.tar.gz` (~3.7 MB) holding `git archive` of all ten
+contributing repositories, a `COMMITS.txt` naming every commit, the NOTICE and
+LICENSE, and a README explaining what is *not* included (YottaDB, FileMan,
+code-server and the extensions — each pinned, each pointed at its upstream).
+
+It refuses rather than produce something unverifiable:
+
+| Refusal | Why |
+|---|---|
+| uncommitted changes in any repo | a bundle cut from a dirty tree corresponds to no commit anyone can check |
+| a repo whose HEAD differs from what the image was staged from | it would not be the source of *that* image |
+| the image was staged from a DIRTY tree | the correspondence is unprovable, which is the failure mode itself |
+
+That last check is why the order is **commit → `make build` → `make
+source-bundle`**: the bundle is validated against `.build-context/context.provenance`,
+which `make build` writes as it stages.
+
+**Why the bundle, and not "just read the go.mod pins":** the binaries are built
+under a Go workspace, so they compile against the sibling *working trees*, not
+the versions their `go.mod` files name. Those disagree in this release. The
+bundle is what shipped; the pins are not.
+
 ```
 Dockerfile                    the image, pins in its header
 scripts/stage-context.sh      assemble the build context (sync-time)
