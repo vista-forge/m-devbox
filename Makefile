@@ -170,14 +170,25 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	  exit 2; \
 	fi
 	@docker image inspect "$(IMAGE)" >/dev/null 2>&1 || { echo "publish: no local amd64 image $(IMAGE) — run 'make build'"; exit 1; }
-	@who="$$(docker system info --format '{{.Username}}' 2>/dev/null)"; \
-	 if [ -z "$$who" ]; then \
-	   echo "publish: REFUSED — not logged in to Docker Hub."; \
+	@# Login check reads what `docker login` ACTUALLY writes, not `docker info`.
+	@# Measured 2026-07-27: this Docker has NO .Username field in `docker info`
+	@# — the template errors — so the old check refused even a valid login. A
+	@# gate that cannot pass is not a gate, it is an outage waiting for a
+	@# deadline. Credential HELPERS store the secret outside config.json, so a
+	@# configured helper counts as authenticated too.
+	@python3 -c "import json,os,sys;\
+	p=os.path.expanduser('~/.docker/config.json');\
+	d=json.load(open(p)) if os.path.exists(p) else {};\
+	reg=sys.argv[1].split('/')[0];\
+	key='https://index.docker.io/v1/' if reg=='docker.io' else reg;\
+	a=d.get('auths',{}).get(key,{});\
+	ok=bool(a.get('auth')) or bool(d.get('credsStore')) or bool(d.get('credHelpers',{}).get(key));\
+	print('publish: authenticated for '+key) if ok else sys.exit(1)" "$(REGISTRY)" || { \
+	   echo "publish: REFUSED — no Docker credentials for $(REGISTRY)."; \
 	   echo "  echo \"\$$DOCKERHUB_TOKEN\" | docker login -u \"\$$DOCKERHUB_USER\" --password-stdin"; \
 	   echo "  (both come from ~/data/vista-forge/auth.env via direnv — never a forge secret store)"; \
 	   exit 3; \
-	 fi; \
-	 echo "publish: authenticated as $$who"
+	 }
 	@$(MAKE) --no-print-directory mac-connect
 	@DOCKER_HOST="unix://$(MAC_SOCK)" docker image inspect "$(IMAGE_ARM64)" >/dev/null 2>&1 || \
 	  { echo "publish: no arm64 image on the Mac — run 'make build-arm64'"; exit 1; }
@@ -198,6 +209,9 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	  --format '{{range .Manifest.Manifests}}  {{.Platform.OS}}/{{.Platform.Architecture}}  {{.Digest}}{{println}}{{end}}' 2>/dev/null || true
 	@echo "RECORD the digest above, then bind the source bundle to it:"
 	@echo "    make source-bundle DIGEST=<digest>"
+
+source-bundle: ## Corresponding source for the published image (AGPL duty; refuses on dirt or skew)
+	bash scripts/source-bundle.sh --image "$(IMAGE)" --tag "$(PUBLISH_TAG)" $(if $(DIGEST),--digest "$(DIGEST)",)
 
 load: ## Offline: restore $(IMAGE) from the org engine-image archive (rule 5 recovery path)
 	@f="$(ARCHIVE)/$$(printf '%s' '$(IMAGE)' | tr '/:' '__').tar.zst"; \
