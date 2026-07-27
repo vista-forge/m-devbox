@@ -92,6 +92,10 @@
 #       M language, namely m-vscode. A second M extension would mean two
 #       highlighters and two linters on one file; this refuses it structurally
 #       rather than by review.
+#   G25 PR-15 — the licence TEXTS travel with the artifact (/opt/licenses/),
+#       the baked NOTICE matches the repo, and the shipped FileMan routines
+#       retain their Medsphere/Apache attribution. 774 of 861 are Apache-2.0,
+#       so §4(a)+(b) are obligations, not decoration.
 #   ── (earlier P3 gates) ─────────────────────────────────────────────────────
 #   G16 PR-12 — baked routines link + run under a READ-ONLY rootfs, no host
 #       writes. The strictest form of the requirement: `--read-only`, so the
@@ -699,6 +703,47 @@ if [ "$G24B_N" -eq 1 ] && printf '%s' "$G24B_LIST" | grep -qi 'm-vscode'; then
   echo "  ✓ exactly one extension claims the M language, and it is m-vscode ($(printf '%s' "$G24B_LIST" | tr -d ' '))"
 else
   fail "G24(b): M-language ownership is contested — expected ONLY m-vscode, found ($G24B_N):$G24B_LIST"
+fi
+
+echo "== G25: PR-15 — the licences TRAVEL WITH the artifact =="
+# Apache-2.0 §4(a) requires a redistribution to give recipients a copy of the
+# License, and 774 of the 861 FileMan routines in this image are Apache-2.0
+# (MSC FileMan 1051 lineage, measured 2026-07-26). Before that measurement the
+# per-routine notices shipped but the licence text they point at did not — a
+# duty met on paper and not in the artifact. This gate keeps it met in the
+# artifact, which is the only place it counts.
+G25_OUT="$(timeout 60 docker run --rm "$IMG" sh -c '
+set -e
+for f in /opt/licenses/Apache-2.0.txt /opt/licenses/AGPL-3.0.txt /opt/licenses/NOTICE; do
+  test -s "$f" || { echo "MISSING $f"; exit 1; }
+done
+grep -q "Apache License" /opt/licenses/Apache-2.0.txt || { echo "NOT_APACHE_TEXT"; exit 1; }
+grep -q "GNU AFFERO GENERAL PUBLIC LICENSE" /opt/licenses/AGPL-3.0.txt || { echo "NOT_AGPL_TEXT"; exit 1; }
+grep -q "Apache License, Version 2.0" /opt/licenses/NOTICE || { echo "NOTICE_MISSING_FILEMAN_TERMS"; exit 1; }
+echo "LICENSES_OK"
+' 2>&1)"; G25_RC=$?
+if [ "$G25_RC" -eq 0 ] && printf '%s' "$G25_OUT" | grep -q LICENSES_OK; then
+  echo "  ✓ /opt/licenses/ carries the Apache-2.0 + AGPL-3.0 texts and the third-party NOTICE"
+else
+  fail "G25(a): licence texts missing from the image (rc=$G25_RC)"$'\n'"$(printf '%s' "$G25_OUT" | tail -6)"
+fi
+# The baked NOTICE must be the repo's NOTICE — a stale copy would misdescribe
+# what is actually inside the artifact it ships in.
+G25_SRC_SHA="$(sha256sum "$HERE/../NOTICE" | cut -d' ' -f1)"
+G25_BAKED_SHA="$(run "$IMG" sha256sum /opt/licenses/NOTICE 2>/dev/null | cut -d' ' -f1)"
+if [ -n "$G25_BAKED_SHA" ] && [ "$G25_BAKED_SHA" = "$G25_SRC_SHA" ]; then
+  echo "  ✓ baked NOTICE is byte-identical to the repo's (${G25_SRC_SHA:0:12}…)"
+else
+  fail "G25(b): baked NOTICE ($G25_BAKED_SHA) != repo NOTICE ($G25_SRC_SHA) — restage and rebuild"
+fi
+# And the FileMan attribution notices must still be present in the SHIPPED
+# routines: Apache-2.0 §4(b) is about what the recipient receives, not about
+# what our source tree looked like at build time.
+G25C_OUT="$(run "$IMG" sh -c 'grep -l "MSC FileMan 1051" /opt/lib/r/*.m 2>/dev/null | wc -l')"
+if [ "${G25C_OUT:-0}" -ge 700 ] 2>/dev/null; then
+  echo "  ✓ $G25C_OUT shipped routines retain their Medsphere/Apache attribution notice"
+else
+  fail "G25(c): attribution notices are missing from the shipped routines (found ${G25C_OUT:-0}, expected >=700) — Apache-2.0 §4(b)"
 fi
 
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi

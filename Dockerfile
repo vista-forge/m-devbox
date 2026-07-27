@@ -223,6 +223,16 @@ COPY examples/ /opt/examples/
 COPY msl-lib/ /opt/msl/
 COPY fsl-lib/ /opt/fsl/
 
+# ── licences travel WITH the artifact (PR-15) ────────────────────────────────
+# 774 of the 861 FileMan routines are Apache-2.0 (MSC FileMan 1051 lineage,
+# measured 2026-07-26), and Apache-2.0 §4(a) requires a redistribution to give
+# recipients a copy of the License. The per-routine notices ship inside the
+# routines themselves; this is the licence TEXT they point at, plus the image's
+# own AGPL text and the third-party inventory. `docker run <image> cat
+# /opt/licenses/NOTICE` is the one-command answer to "what is in here and under
+# what terms".
+COPY licenses/ /opt/licenses/
+
 # ── P2 bake, step 5: PRECOMPILE the example .o + stamp all objects (PR-12) ────
 # For a hardened READ-ONLY rootfs, no baked routine may ZLINK at runtime (the
 # source dirs are read-only, so the .o write fails and the routine fails to link

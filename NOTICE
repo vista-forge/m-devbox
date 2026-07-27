@@ -40,10 +40,49 @@ ENGINE AND BASE
 
 APPLICATION AND DATA
 
-  VA FileMan 22.2                         — United States Government work,
-      PUBLIC DOMAIN (U.S. Department of Veterans Affairs). Obtained from the
-      WorldVistA/VistA-VEHU-M mirror at a pinned commit, with every routine
-      byte verified against a committed checksum manifest before the build.
+  VA FileMan 22.2 — MIXED PROVENANCE, measured 2026-07-26 by reading all 861
+      routines of the pinned source (do not restate this from memory; re-measure
+      when the pin moves):
+
+        774 of 861 routines carry, in the routine source itself:
+            ";;Based on Medsphere Systems Corporation's MSC FileMan 1051."
+            ";;Licensed under the terms of the Apache License, Version 2.0."
+          — Apache-2.0, Medsphere Systems Corporation lineage, submitted to
+            OSEHRA by the VISTA Expertise Network.
+
+         87 of 861 routines carry no such notice (the DDE*/DI* set) — United
+            States Government work, no licence terms asserted.
+
+        797 of 861 additionally carry ";;Per VA Directive 6402, this routine
+            should not be modified." That is a VA internal directive about
+            running FileMan unmodified, not a licence term binding a third
+            party; it is recorded because the image honours it in substance
+            (see the change statement below).
+
+      Obtained from the WorldVistA/VistA-VEHU-M mirror at a pinned commit, with
+      every routine byte verified against a committed checksum manifest before
+      the build.
+
+      APACHE-2.0 COMPLIANCE, as satisfied by this image:
+        §4(a) a copy of the License travels with the artifact — /opt/licenses/
+              Apache-2.0.txt (also this NOTICE at /opt/licenses/NOTICE).
+        §4(b) attribution notices are RETAINED: the routines ship as source in
+              /opt/lib/r with their notice lines intact.
+        §4(b) STATEMENT OF CHANGES. The FileMan routines are installed VERBATIM
+              and are not edited. Two mechanical changes are made and are
+              disclosed here:
+                (1) five routines are COPIED to `%`-names required by a
+                    Kernel-free GT.M/YottaDB engine (DIDT→%DT, DIDTC→%DTC,
+                    DIRCR→%RCR, DIIS→%ZIS, DIISS→%ZISS). Only the routine label
+                    line differs; the body, including the Apache notice, is
+                    copied unchanged.
+                (2) two routines that are NOT FileMan and NOT derived from it
+                    are added by vista-forge: FMPOCREN (performs the copy above)
+                    and ZOSVSTUB (a minimal %ZOSV, which standalone FileMan does
+                    not ship for GT.M). Both are vista-forge code under this
+                    repo's terms.
+              `^DINIT` is DRIVEN through its normal interactive dialog, not
+              patched.
 
 IDE
 
@@ -85,9 +124,12 @@ discovered late:
      private does not remove that obligation — it has to be satisfied some
      other way.
 
-  2. PUBLIC DOMAIN IS NOT A LICENSE. VA FileMan carries no license terms
-     because it is a U.S. Government work; it imposes no conditions, but it
-     also grants no warranty and it does not alter the obligations above.
+  2. FILEMAN IS NOT SIMPLY "PUBLIC DOMAIN". An earlier revision of this file
+     said it was. Measurement disagreed: 774 of 861 routines are Apache-2.0
+     (Medsphere lineage). Apache-2.0 is one-way compatible with AGPL-3.0 — it
+     can be combined into an AGPL work, which is the direction this image goes
+     — but it carries its own attribution and licence-delivery duties, listed
+     above and satisfied by /opt/licenses/.
 
 Publication of the image is gated on that disposition plus the VA
 licence-posture check — prerequisites tracker PR-15 / PR-17, in the `docs`

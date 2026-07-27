@@ -191,6 +191,20 @@ stage_lib_docs() { # $1 = repo name, $2 = staged dir
 stage_lib_docs m-stdlib "$CTX/msl-lib"
 stage_lib_docs f-stdlib "$CTX/fsl-lib"
 
+# ── licences that must TRAVEL WITH THE IMAGE (PR-15) ────────────────────────
+# MEASURED 2026-07-26: 774 of the 861 FileMan routines carry "Based on Medsphere
+# Systems Corporation's MSC FileMan 1051. Licensed under the terms of the Apache
+# License, Version 2.0." FileMan here is therefore NOT plain public domain, and
+# Apache-2.0 §4(a) requires that recipients of a redistribution GET A COPY OF THE
+# LICENSE. Shipping the notices inside the routines is necessary but not
+# sufficient — the licence text itself has to be in the artifact. Sourced from
+# the org's own committed Apache-2.0 text (offline; no fetch).
+rm -rf "$CTX/licenses"
+mkdir -p "$CTX/licenses"
+cp "$FORGE/clikit/LICENSE" "$CTX/licenses/Apache-2.0.txt"
+cp "$REPO/LICENSE"         "$CTX/licenses/AGPL-3.0.txt"
+cp "$REPO/NOTICE"          "$CTX/licenses/NOTICE"
+
 # ── FileMan: pinned source + build scripts (installed in-build, §5.2(a)) ─────
 # The fileman source is pinned to an immutable commit and verified
 # byte-for-byte against seed/sources.sha256. Fetch once (sync-time) if absent,
