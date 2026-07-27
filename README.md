@@ -394,9 +394,9 @@ docs/design/image-dossier.md  measured contents, sizes, sweep baseline
 | `m test` reports "made no assertions" | same cause: the suite's directory is not on the routine path |
 | Green exit code, wrong result | `m vista exec` reports process status, not M errors — read the output (PR-28) |
 
-Live status for every prerequisite and open question is the
-[prerequisites tracker](../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md),
-not this README.
+Live status for every prerequisite and open question is the m-devbox
+prerequisites tracker — `proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md`
+in the organization's `docs` repository, which is not public — not this README.
 
 ## License
 

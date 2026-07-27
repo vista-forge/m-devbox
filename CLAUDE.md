@@ -10,14 +10,15 @@ person with only Docker, VS Code and git gets YottaDB, the five native
 callouts, the `m`/`m-ydb` toolchain and MSL — and (from P2) FileMan and FSL —
 without installing a compiler, a Go toolchain, or a clone of this org.
 
-- Proposal: `../docs/proposals/m-devbox/m-devbox.md`
+- Proposal: `proposals/m-devbox/m-devbox.md` (in the org's private `docs` repo)
 - **Status — the single source of truth for what is done and what blocks what:**
-  `../docs/proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md`.
+  `proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md` (private
+  `docs` repo).
   Its operating rules bind work here: every measurement is EXECUTED and dated,
   📄 doc-claims close nothing, and a fix that has not updated the table is not
   done.
 - PR-2…PR-5 closure evidence (frozen, do not edit):
-  `../docs/proposals/m-devbox/callout-build-path/`.
+  `proposals/m-devbox/callout-build-path/` (private `docs` repo).
 
 ## This repo builds an IMAGE. It does not build software.
 
@@ -91,7 +92,7 @@ not an image tweak.
 | `arch-check` | `m arch check` — waterline + `repo.meta.json` shape |
 | `docs-gate` | link + layout |
 | `shell-gate` | `bash -n` / `sh -n` floor on every shipped script, plus shellcheck when installed |
-| `verify` | the acceptance battery G1–G24 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2; G21 library reading trees + G22 the `lib-demo` round trip — MD-D9; G23 the IDE opens trusted + G24 extension set & M-language ownership — MD-D10) |
+| `verify` | the acceptance battery G1–G27 against the built image, all through the driver seam (G9 `m lib verify`, G10 FileMan, G11 FSL suite, G12 `examples/hello` — P2; G21 library reading trees + G22 the `lib-demo` round trip — MD-D9; G23 the IDE opens trusted + G24 extension set & M-language ownership — MD-D10; G25 licences travel in the artifact + G26 OCI provenance labels + G27 the baked binaries are pin-built — PR-15/PR-24) |
 
 `make sweep` (the full MSL suite run) is a **measurement, not a gate** — 11
 suites in `STDS3MINIOTST` fail without a MinIO service, so it can never be
@@ -106,6 +107,9 @@ and needs no VistA. Registered in `.github/ecosystem.json` and
 
 ## License — AGPL-3.0-or-later + commercial
 
-Org policy ([[org-licence-topology-agpl]]). Note the image *assembles*
-AGPL YottaDB and (from P2) public-domain VA FileMan; the combined-work
-disposition is PR-17 and gates publication, not building.
+Org policy ([[org-licence-topology-agpl]]). The image *assembles* AGPL YottaDB
+and VA FileMan — which is **not simply public domain**: 774 of its 861 routines
+are Apache-2.0 (Medsphere MSC FileMan 1051 lineage), measured 2026-07-26. The
+combined-work disposition (PR-17) and the VA posture check (PR-15) are both
+CLOSED; `NOTICE` carries the full inventory, and `/opt/licenses/` puts the
+licence texts inside the artifact because Apache-2.0 §4(a) requires it.
