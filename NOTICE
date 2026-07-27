@@ -106,34 +106,38 @@ VISTA-FORGE COMPONENTS (ours; same terms as this repo)
       — vista-forge, AGPL-3.0-or-later + commercial.
 
 ------------------------------------------------------------------------------
-Combined-work status — NOT YET DISPOSITIONED
+Combined-work status — RULED 2026-07-26
 ------------------------------------------------------------------------------
 
-The terms above govern the sources individually. How they COMBINE in a
-distributed image has NOT been ruled. A draft analysis exists for review at
-`docs/licensing/m-devbox-combined-work-disposition.md` in the vista-forge
-`docs` repo; it is a DRAFT and is not a legal conclusion.
+CORRESPONDING SOURCE (AGPL). The complete source this image was built from —
+all ten contributing repositories at their exact build commits — is published
+in this image's own public repository:
 
-Two points that bear on any distribution, stated here so they are not
-discovered late:
+  https://github.com/vista-forge/m-devbox/tree/main/releases
 
-  1. AGPL SOURCE OBLIGATION. The image contains AGPL-3.0-or-later software
-     (YottaDB) and vista-forge's own AGPL-licensed code. Distributing the image
-     carries the corresponding-source obligation for those components toward
-     the recipients. Publishing an image while its vista-forge sources remain
-     private does not remove that obligation — it has to be satisfied some
-     other way.
+  m-devbox-<version>-corresponding-source.tar.gz  (+ .sha256)
 
-  2. FILEMAN IS NOT SIMPLY "PUBLIC DOMAIN". An earlier revision of this file
-     said it was. Measurement disagreed: 774 of 861 routines are Apache-2.0
-     (Medsphere lineage). Apache-2.0 is one-way compatible with AGPL-3.0 — it
-     can be combined into an AGPL work, which is the direction this image goes
-     — but it carries its own attribution and licence-delivery duties, listed
-     above and satisfied by /opt/licenses/.
+That bundle is the discharge of the AGPL corresponding-source obligation
+carried by YottaDB and by vista-forge's own AGPL code. It is verifiable, not
+merely offered: each repository is archived at the commit the image was staged
+from, the binaries are built against committed pins rather than working trees,
+and the image's own acceptance gates refuse a mismatch (G25 licences, G27 pins).
 
-Publication of the image is gated on that disposition plus the VA
-licence-posture check — prerequisites tracker PR-15 / PR-17, in the `docs`
-repo. Building and using the image locally is not gated.
+RULING. Ship as AGPL-3.0-or-later. Apache-2.0 (VA FileMan, the extensions,
+code-server) and GPL-2.0 (git) are all one-way compatible INTO an AGPL
+aggregate, which is the direction this image goes, so the licences do not
+conflict. Full analysis: docs/licensing/m-devbox-combined-work-disposition.md
+in the vista-forge `docs` repo. Nothing here is a legal conclusion.
+
+FILEMAN IS NOT SIMPLY "PUBLIC DOMAIN". An earlier revision of this file said it
+was. Measurement disagreed: 774 of 861 routines are Apache-2.0 (Medsphere
+lineage). Apache-2.0 combines cleanly into an AGPL work, but carries its own
+attribution and licence-delivery duties — listed above and satisfied by
+/opt/licenses/ inside the image.
+
+The publication prerequisites this once waited on — the VA licence-posture
+check and the combined-work disposition — are both closed (tracker PR-15,
+PR-17). Building and using the image locally was never gated.
 
 Not baked, and why (recorded so the decision is not silently revisited):
 `alefragnani.Bookmarks` was evaluated as a companion extension and declares

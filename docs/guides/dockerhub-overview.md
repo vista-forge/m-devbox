@@ -116,16 +116,13 @@ contains all ten contributing repositories at the exact commits the image was
 built from, and the build is pin-reproducible — the module versions embedded in
 the shipped binaries are gated against the committed pins.
 
-The image recipe — Dockerfile, staging, gates, examples — is public at
-<https://github.com/vista-forge/m-devbox>, which is where
-`org.opencontainers.image.source` points.
+It is published in the image's own repository, which is also where
+`org.opencontainers.image.source` points:
 
-> ⚠️ **BEFORE PUBLISHING:** name the location of the corresponding-source
-> bundle here. The recipe repo above is public, but the source of the *binaries
-> in the image* (the `m` toolchain, the driver, MSL and FSL, and their linked
-> libraries) is not yet — so the AGPL duty is not discharged by that link alone.
-> Either publish the bundle at a durable URL and name it here, or make those
-> repositories public too. This is the last unresolved publication
-> prerequisite.
+**<https://github.com/vista-forge/m-devbox/tree/main/releases>**
+
+Each release ships `m-devbox-<version>-corresponding-source.tar.gz` with a
+`.sha256` beside it, containing all ten contributing repositories at the exact
+commits the image was built from.
 
 Not affiliated with or endorsed by the U.S. Department of Veterans Affairs.
