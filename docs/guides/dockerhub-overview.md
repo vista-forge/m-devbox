@@ -35,11 +35,13 @@ database, and forty years of context. This image is the missing on-ramp.
 
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
-  rafaelrichards/m-devbox:0.1.0
+  rafaelrichards/m-devbox
 ```
 
 Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
-engine.
+engine. That mounts the directory you ran it from as your workspace.
+
+Pin a version if you prefer: `rafaelrichards/m-devbox:0.1.0`.
 
 ---
 
@@ -194,7 +196,7 @@ notice), MIT code-server and extensions, and GPL-2.0 `git`. The full inventory �
 every licence read from the artifact itself, not from a listing — ships inside:
 
 ```bash
-docker run --rm rafaelrichards/m-devbox:0.1.0 cat /opt/licenses/NOTICE
+docker run --rm rafaelrichards/m-devbox cat /opt/licenses/NOTICE
 ```
 
 **Corresponding source.** As AGPL software, this image entitles you to the

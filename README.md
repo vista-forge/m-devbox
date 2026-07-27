@@ -371,11 +371,14 @@ is set explicitly, and again if you are not logged in — both *before* anything
 is tagged. When it does run, it re-runs the whole acceptance battery against the
 exact image being pushed, then prints the resulting **digest**.
 
-**There is no `latest` tag, deliberately.** A mutable tag is how this project
-nearly lost a working IRIS engine: `latest` moved underneath it and the only
-good copy survived by luck. Publish immutable version tags
-(`make publish PUBLISH_TAG=0.2.0`) and tell consumers to pin the digest that the
-push prints.
+**Each release publishes two tags**: the immutable version and `latest` moved
+to it, so a bare `docker pull rafaelrichards/m-devbox` works for a first-time
+user. `make publish PUBLISH_TAG=0.2.0` sets both.
+
+The org's rule against mutable tags ([[iris-community-hub-rebuild-breaks-boot]])
+governs what we *consume* — everything this image builds on is pinned, never a
+moving `latest`. Offering one to our own users is a separate question, and a
+working first command wins.
 
 Licence inventory for anything you distribute: [NOTICE](NOTICE), also baked into
 the image at `/opt/licenses/`.

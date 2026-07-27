@@ -152,10 +152,14 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 # tag, then `buildx imagetools create` joins them into one manifest list, so a
 # user's `docker pull` resolves the right architecture with no flag.
 #
-# NO `latest` TAG, deliberately. A mutable tag is how this org lost a working
-# IRIS image ([[iris-community-hub-rebuild-breaks-boot]]): `latest` moved under
-# it and the only good copy survived by luck. Publish immutable version tags and
-# let consumers pin a digest, which this target prints after the push.
+# Two tags per release: the immutable version, and `latest` moved to it — so a
+# bare `docker pull rafaelrichards/m-devbox` just works for someone trying this
+# for the first time. Both point at the same manifest.
+#
+# The org's own rule about mutable tags ([[iris-community-hub-rebuild-breaks-boot]])
+# is about what we CONSUME: pins for anything we build on, never a moving
+# `latest`. Offering one to our users is a different question, and ease of a
+# first run wins.
 REGISTRY ?= docker.io/rafaelrichards
 PUBLISH_TAG ?= 0.1.0
 
@@ -165,7 +169,7 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	  echo "  PR-15 VA licence posture ............. OK  closed 2026-07-26"; \
 	  echo "  PR-17 combined-work disposition ...... OK  ruled  2026-07-26"; \
 	  echo "  PR-16 $(REGISTRY) org ......... register + creds in auth.env"; \
-	  echo "  target: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)  (linux/amd64 + linux/arm64, no 'latest')"; \
+	  echo "  target: $(REGISTRY)/m-devbox:$(PUBLISH_TAG) + :latest  (linux/amd64 + linux/arm64)"; \
 	  echo "  When ready: make publish PUBLISH_OK=1"; \
 	  exit 2; \
 	fi
@@ -201,10 +205,11 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	DOCKER_HOST="unix://$(MAC_SOCK)" docker tag "$(IMAGE_ARM64)" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
 	DOCKER_HOST="unix://$(MAC_SOCK)" docker push "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
 	@echo "publish: joining both under one tag so 'docker pull' resolves per-arch"
-	docker buildx imagetools create -t "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" \
+	docker buildx imagetools create \
+	  -t "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" -t "$(REGISTRY)/m-devbox:latest" \
 	  "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-amd64" "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)-arm64"
 	@echo
-	@echo "published: $(REGISTRY)/m-devbox:$(PUBLISH_TAG)"
+	@echo "published: $(REGISTRY)/m-devbox:$(PUBLISH_TAG) (and :latest)"
 	@docker buildx imagetools inspect "$(REGISTRY)/m-devbox:$(PUBLISH_TAG)" \
 	  --format '{{range .Manifest.Manifests}}  {{.Platform.OS}}/{{.Platform.Architecture}}  {{.Digest}}{{println}}{{end}}' 2>/dev/null || true
 	@echo "RECORD the digest above, then bind the source bundle to it:"
