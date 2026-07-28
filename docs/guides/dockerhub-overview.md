@@ -59,7 +59,7 @@ something out.
   +----------------------------------------+
 ```
 
-### 1. YottaDB — the engine
+### 1. M engine (YottaDB)
 
 The database and the language runtime in one. It stores hierarchical, sparse
 key-value structures called **globals**, and it is serious infrastructure: ACID
