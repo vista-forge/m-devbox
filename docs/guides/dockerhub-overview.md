@@ -48,7 +48,7 @@ something out.
   |  your app     (the code you write)     |
   +----------------------------------------+
   |  FSL          FileMan Standard Library |
-  |  FM           FileMan 22.2             |
+  |  FM           FileMan                  |
   +----------------------------------------+
   |  MSL          M Standard Library       |
   +----------------------------------------+
@@ -113,15 +113,15 @@ write $$sha256^STDCRYPTO("abc")
 
 ### 5. FileMan — the database *management* system
 
-**VA FileMan** (*FileMan*, or FM) is where M stops being a key-value store and
-becomes an application platform. It is a **data-dictionary driven DBMS**: you
+**FileMan** is where M stops being a key-value store and becomes an
+application platform. It is a **data-dictionary driven DBMS**: you
 define files and fields — a schema, itself held as data — and FileMan then
 provides validation, data types, cross-references, indexes, lookups, queries and
 reporting, enforced consistently for every program that touches the data.
 
 It is over forty years old, in continuous production, and is the foundation of
 VistA — the electronic health record running the entire U.S. Department of
-Veterans Affairs hospital system. Version **22.2**, standalone and ready.
+Veterans Affairs hospital system. It is installed here standalone and ready.
 
 ### 6. FSL — the **FileMan Standard Library**
 
@@ -185,7 +185,7 @@ Control works. Nothing is downloaded on first run.
 ## Licence and source
 
 AGPL-3.0-or-later, with a commercial option. The image assembles AGPL YottaDB,
-Apache-2.0 VA FileMan, MIT code-server and extensions, and GPL-2.0 `git`. The
+Apache-2.0 FileMan, MIT code-server and extensions, and GPL-2.0 `git`. The
 full inventory ships inside the image:
 
 ```bash
