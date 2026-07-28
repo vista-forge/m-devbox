@@ -15,6 +15,35 @@ page.
 **Short description** (100-char field):
 
 ```
+Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Code — one container.
+```
+
+---
+
+## Overview body — paste from here down
+
+# m-devbox
+
+**A modern, integrated M (MUMPS) development environment in one container.** Start it, open a browser, and you are writing and running M code against a real database in about a minute — no compiler, no toolchain, nothing to install but Docker.
+
+M is one of the oldest languages still doing serious work: it runs a large share of the world's hospitals and core-banking systems. It is also famously hard to *start* with, because the ecosystem assumes you already have an engine, a database, and forty years of context. This image is the missing on-ramp.
+
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
+  rafaelrichards/m-devbox
+```
+
+Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
+engine. That mounts the directory you ran it from as your workspace.
+
+---
+
+## The stack, from the metal up
+
+Six layers ship in this image. Each exists because the layer below it leaves
+something out.
+
+```
       your application code
   +------------------------------------+
   |  FSL     FileMan Standard Library  |
@@ -159,7 +188,8 @@ Apache-2.0 VA FileMan, MIT code-server and extensions, and GPL-2.0 `git`. The
 full inventory ships inside the image:
 
 ```bash
-docker run --rm rafaelrichards/m-devbox cat /opt/licenses/NOTICE
+docker run --rm rafaelrichards/m-devbox \
+  cat /opt/licenses/NOTICE
 ```
 
 **Corresponding source.** As AGPL software, this image entitles you to the
