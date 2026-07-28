@@ -197,6 +197,8 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	@$(MAKE) --no-print-directory mac-connect
 	@DOCKER_HOST="unix://$(MAC_SOCK)" docker image inspect "$(IMAGE_ARM64)" >/dev/null 2>&1 || \
 	  { echo "publish: no arm64 image on the Mac — run 'make build-arm64'"; exit 1; }
+	@echo "publish: proving both arches are the SAME clean build before either leaves this machine"
+	scripts/check-image-provenance.sh "$(IMAGE)" "$(IMAGE_ARM64)" "$(MAC_SOCK)"
 	@echo "publish: re-verifying BOTH images before either leaves this machine"
 	scripts/verify-devbox.sh "$(IMAGE)"
 	DOCKER_HOST="unix://$(MAC_SOCK)" scripts/verify-devbox.sh "$(IMAGE_ARM64)"
