@@ -490,6 +490,11 @@ working first command wins.
 Licence inventory for anything you distribute: [NOTICE](NOTICE), also baked into
 the image at `/opt/licenses/`.
 
+**Cutting a release?** The order matters — the source bundle refuses if the
+image was built before the commits it must correspond to. Follow
+[docs/guides/releasing.md](docs/guides/releasing.md), which is the whole
+sequence with the refusals decoded.
+
 ### Corresponding source (required by the AGPL)
 
 The image ships AGPL software — YottaDB and vista-forge's own code — so whoever

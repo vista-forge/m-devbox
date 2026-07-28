@@ -28,7 +28,7 @@ IMAGE   ?= m-devbox:0.1.0-local
 CTX     ?= $(CURDIR)/.build-context
 ARCHIVE ?= $(HOME)/data/vista-forge/images
 
-.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish source-bundle load clean mac-connect build-arm64 verify-arm64
+.PHONY: help stage build rebuild verify sweep check arch-check docs-gate shell-gate pins archive publish hub-page source-bundle load clean mac-connect build-arm64 verify-arm64
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | \
@@ -215,6 +215,9 @@ publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without
 	  --format '{{range .Manifest.Manifests}}  {{.Platform.OS}}/{{.Platform.Architecture}}  {{.Digest}}{{println}}{{end}}' 2>/dev/null || true
 	@echo "RECORD the digest above, then bind the source bundle to it:"
 	@echo "    make source-bundle DIGEST=<digest>"
+
+hub-page: ## Print the Docker Hub page text for pasting (--body for piping)
+	@bash scripts/hub-page.sh
 
 source-bundle: ## Corresponding source for the published image (AGPL duty; refuses on dirt or skew)
 	bash scripts/source-bundle.sh --image "$(IMAGE)" --tag "$(PUBLISH_TAG)" $(if $(DIGEST),--digest "$(DIGEST)",)
