@@ -55,7 +55,7 @@ something out.
   |  m         developer toolchain      |
   |  m-ydb     engine adapter           |
   +-------------------------------------+
-  |  YottaDB   the M engine             |
+  |  M engine  (YottaDB)                |
   +-------------------------------------+
 ```
 
