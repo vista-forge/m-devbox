@@ -48,11 +48,11 @@ something out.
   |  your app     (the code you write)     |
   +----------------------------------------+
   |  FSL          FileMan Standard Library |
-  |  FM           VA FileMan 22.2          |
+  |  FM           FileMan 22.2             |
   +----------------------------------------+
   |  MSL          M Standard Library       |
   +----------------------------------------+
-  |  m            developer toolchain      |
+  |  m            M developer toolchain    |
   |  m-driver     (m-ydb)                  |
   +----------------------------------------+
   |  M engine     (YottaDB)                |
