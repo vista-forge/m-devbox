@@ -53,7 +53,7 @@ something out.
   |  MSL          M Standard Library       |
   +----------------------------------------+
   |  m            developer toolchain      |
-  |  m-ydb        engine adapter           |
+  |  m-driver     (m-ydb)                  |
   +----------------------------------------+
   |  M engine     (YottaDB)                |
   +----------------------------------------+
@@ -67,7 +67,7 @@ transactions, journaling, replication, and a lineage (GT.M) that has run
 national-scale banking and health systems for decades. Already installed,
 initialised and running here.
 
-### 2. `m-ydb` — the engine adapter
+### 2. m-driver (m-ydb)
 
 YottaDB is operated through a family of specialist utilities — `mupip`, `gde`,
 `dse`, `lke` — plus rules about process lifecycle and locking. `m-ydb` is the
