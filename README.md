@@ -2,7 +2,7 @@
 
 **A complete M (MUMPS) development environment in one container image.** A
 YottaDB engine, the `m` toolchain, two standard libraries with their source and
-documentation, standalone VA FileMan, and a full VS Code IDE in your browser —
+documentation, standalone FileMan, and a full VS Code IDE in your browser —
 with nothing to install but Docker.
 
 You do not need a compiler, a Go toolchain, a clone of this organization, or
@@ -14,10 +14,11 @@ any network access after the image is on your machine.
 
 ```bash
 docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
-  m-devbox:0.1.0-local
+  rafaelrichards/m-devbox
 ```
 
-Then open **http://127.0.0.1:8080**.
+Then open **http://127.0.0.1:8080**. (Building it yourself instead? The local
+tag is `m-devbox:0.1.0-local` — see *For maintainers* below.)
 
 Use the IP, not `localhost` — the port is published on IPv4 loopback only, and
 `localhost` often resolves to IPv6 first, which shows `ERR_CONNECTION_REFUSED`
@@ -33,7 +34,7 @@ It force-removes the previous container first, which is what frees port 8080:
 mdevbox() {
   docker rm -f m-devbox >/dev/null 2>&1
   docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
-    m-devbox:0.1.0-local
+    rafaelrichards/m-devbox
 }
 ```
 
@@ -69,6 +70,112 @@ examples and both libraries. Everything below runs in the built-in terminal
 
 ---
 
+## The stack, from the metal up
+
+Six layers ship in this image. Each exists because the layer below it leaves
+something out.
+
+```
+  +----------------------------------------+
+  |  your app     (the code you write)     |
+  +----------------------------------------+
+  |  FSL          FileMan Standard Library |
+  |  FM           FileMan                  |
+  +----------------------------------------+
+  |  MSL          M Standard Library       |
+  +----------------------------------------+
+  |  m            M developer toolchain    |
+  |  m-driver     (m-ydb)                  |
+  +----------------------------------------+
+  |  M engine     (YottaDB)                |
+  +----------------------------------------+
+```
+
+### 1. M engine (YottaDB)
+
+The database and the language runtime in one. It stores hierarchical, sparse
+key-value structures called **globals**, and it is serious infrastructure: ACID
+transactions, journaling, replication, and a lineage (GT.M) that has run
+national-scale banking and health systems for decades. Already installed,
+initialised and running here.
+
+### 2. m-driver (m-ydb)
+
+YottaDB is operated through a family of specialist utilities — `mupip`, `gde`,
+`dse`, `lke` — plus rules about process lifecycle and locking. `m-ydb` is the
+**vendor adapter** that hides all of that behind one neutral contract, so the
+tools above it never learn YottaDB-specific commands. You will rarely call it
+directly. It is what keeps everything above portable across M engines.
+
+### 3. `m` — the developer inner loop
+
+The toolchain a modern developer expects, for a language that never had one.
+This is what you will actually type:
+
+| Command | What it does |
+|---|---|
+| `m test` | run test suites, with assertion counts |
+| `m lint` | static analysis — the squiggles in the editor |
+| `m fmt` | format code |
+| `m coverage` | test coverage |
+| `m watch` | re-run tests as you edit |
+| `m lib` | install / verify / uninstall libraries on the engine |
+
+Twenty verbs in all; run `m` with no arguments to browse them.
+
+### 4. MSL — the **M Standard Library**
+
+M's built-in library is tiny by modern standards: no JSON, no HTTP, no crypto,
+no regular expressions. MSL closes that gap with **40 modules**, already
+installed on the engine and callable by name:
+
+- **Data formats** — `stdjson`, `stdxml`, `stdcsv`, `stdtoml`, `stdb64`, `stdhex`
+- **Crypto & security** — `stdcrypto`, `stdcsprng`, `stdjwt`, `stdsigv4`
+- **Network** — `stdhttp`, `stdhttpd`, `stdnet`, `stdurl`, `stds3`
+- **Text & data** — `stdstr`, `stdregex`, `stdcoll`, `stdkv`, `stdmath`, `stddate`
+- **Engineering** — `stdassert`, `stdlog`, `stdmock`, `stdprof`, `stdfs`, `stduuid`
+
+Calling one needs no import, no build step and no dependency file — just the
+name:
+
+```m
+write $$toUpperASCII^STDSTR("hello")
+write $$sha256^STDCRYPTO("abc")
+```
+
+### 5. FileMan — the database *management* system
+
+**FileMan** is where M stops being a key-value store and becomes an
+application platform. It is a **data-dictionary driven DBMS**: you
+define files and fields — a schema, itself held as data — and FileMan then
+provides validation, data types, cross-references, indexes, lookups, queries and
+reporting, enforced consistently for every program that touches the data.
+
+It is over forty years old, in continuous production, and is the foundation of
+VistA — the electronic health record running the entire U.S. Department of
+Veterans Affairs hospital system. It is installed here standalone and ready.
+
+### 6. FSL — the **FileMan Standard Library**
+
+FileMan's own calling conventions were designed in another era and show it. FSL
+is a clean, modern API over the same engine — **7 modules** that let you build
+data-driven applications without wrestling the legacy interface:
+
+| Module | What it covers |
+|---|---|
+| `fsldb` | create, read, update, delete |
+| `fsldd` | the data dictionary — files, fields, types |
+| `fslq` | queries and lookups |
+| `fsldate` | FileMan's date format ↔ ISO 8601 |
+| `fslerr` | a consistent error envelope |
+| `fslenv`, `fslfix` | environment setup and test fixtures |
+
+Together that is **an ACID-compliant engine, a real schema layer on top of it,
+and a modern standard library on either side** — enough to build a genuine
+data-driven application, not just a demo.
+
+---
+
 ## What is in the image
 
 | Component | Version / size | Notes |
@@ -78,7 +185,7 @@ examples and both libraries. Everything below runs in the built-in terminal
 | `m` / `m-ydb` toolchain | built from source at image build | test runner, linter, formatter, library installer, engine driver |
 | **MSL** — M Standard Library | 40 routines, 47 doc pages | installed on the engine *and* readable at `/opt/msl` |
 | **FSL** — FileMan Standard Library | 7 routines, 8 doc pages | installed on the engine *and* readable at `/opt/fsl` |
-| VA FileMan | 22.2 | standalone (no Kernel), built into the image |
+| FileMan | 22.2 | standalone (no Kernel), built into the image |
 | code-server | 4.130.0 (VS Code 1.130.0) | the IDE, served to your browser, fully offline |
 | `git` | 2.47.3 | so VS Code's Source Control panel actually works |
 

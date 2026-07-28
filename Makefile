@@ -97,9 +97,10 @@ arch-check: ## Offline: m/v waterline + repo.meta.json shape
 	  && m arch check . \
 	  || { echo "arch-check: FAILED — 'm' is not on PATH; the waterline gate cannot run (fix: workspace/scripts/link-tools.sh)"; exit 1; }
 
-docs-gate: ## Offline: docs link + layout gate
+docs-gate: ## Offline: docs link + layout gate + README/Hub-page drift
 	python3 ../.github/scripts/link-check.py docs README.md CLAUDE.md
 	python3 ../.github/scripts/layout-check.py docs
+	bash scripts/check-docs-sync.sh
 
 # Every shipped script, wherever it lives: scripts/ AND the scripts baked into
 # examples/ (lib-demo's tour is run by users and by G22 — it is shipped code).
