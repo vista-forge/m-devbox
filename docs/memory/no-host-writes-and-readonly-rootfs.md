@@ -33,7 +33,7 @@ to link):
 
 **Measured tell for both:** the tests **"ran but made no assertions"** (the call
 errored before the first `eq^STDASSERT`), NOT a `ZLNOOBJECT` the caller sees — the
-real error (`ZLINKFILE … ZLNOOBJECT` on the `.m`) surfaces only via `m vista exec`
+real error (`ZLINKFILE … ZLNOOBJECT` on the `.m`) surfaces only via `m engine exec`
 with an `$etrap`. A linked-routine failure reads as a no-assertion test.
 
 ⚠️ **Verify a read-only fix on a real REBUILD, never a `docker commit` probe.** A

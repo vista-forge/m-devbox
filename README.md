@@ -306,14 +306,14 @@ moment and try again.
 m test /opt/examples/hello/tests     # a suite, with assertion counts
 m test /opt/msl/tests/STDSTRTST.m    # a single MSL suite
 m lint /work/MYROUTINE.m             # the linter behind the editor squiggles
-m vista exec 'write $$sha256^STDCRYPTO("abc")'    # one-off M through the driver
+m engine exec 'write $$sha256^STDCRYPTO("abc")'    # one-off M through the driver
 m lib list                           # what libraries are installed
 ```
 
 No `--engine` or `--transport` flags are needed: the image bakes `M_ENGINE=ydb`
 and the driver resolves the local engine sitting beside you.
 
-⚠️ **`m vista exec` reports the engine's *process* status, and YottaDB exits 0
+⚠️ **`m engine exec` reports the engine's *process* status, and YottaDB exits 0
 even when it reports an M error** (an unresolvable routine, for instance). So a
 green exit code does not mean your command worked — read the output. This is a
 known open toolchain question, tracked as PR-28.
@@ -420,7 +420,7 @@ clone can be *read* but not built or gated. The published image is the artifact
 intended for use; this repo is how it is made.
 
 The acceptance battery is **G1–G24**, and every engine call in it goes through
-the driver seam (`m vista exec` / `m test`), never a raw `docker exec`. Gates
+the driver seam (`m engine exec` / `m test`), never a raw `docker exec`. Gates
 worth knowing: G9 library ledger, G10 FileMan, G12 the example suite, G16
 read-only rootfs, G17 offline IDE boot, G21 library reading trees, G22 the
 install/uninstall round trip, G23 the IDE opens trusted, G24 extension
@@ -555,7 +555,7 @@ docs/design/image-dossier.md  measured contents, sizes, sweep baseline
 | Clipboard error on paste | browser permission, not the image — see the clipboard table above |
 | A routine will not link | it is not on `$ydb_routines` — see "Working on your own code" |
 | `m test` reports "made no assertions" | same cause: the suite's directory is not on the routine path |
-| Green exit code, wrong result | `m vista exec` reports process status, not M errors — read the output (PR-28) |
+| Green exit code, wrong result | `m engine exec` reports process status, not M errors — read the output (PR-28) |
 
 Live status for every prerequisite and open question is the m-devbox
 prerequisites tracker — `proposals/m-devbox/m-devbox-prerequisites-remediation-tracker.md`

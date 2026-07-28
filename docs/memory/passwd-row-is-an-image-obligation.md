@@ -8,7 +8,7 @@ metadata:
 **Measured 2026-07-22 (m-devbox PR-6), on the pre-fix candidate image:**
 
 ```
-$ docker run --rm --user 1000:1000 m-devbox-base:candidate m vista exec …
+$ docker run --rm --user 1000:1000 m-devbox-base:candidate m engine exec …
 RUNLOCK_FAILED — run-lock: passwd lookup for the lock home failed
                  (no $HOME fallback …): user: unknown userid 1000
 ```

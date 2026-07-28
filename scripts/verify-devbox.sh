@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Acceptance gates for the m-devbox image — all engine execution through the
-# driver seam (`m vista exec` / `m test`), never a raw exec.
+# driver seam (`m engine exec` / `m test`), never a raw exec.
 #
 #   verify-devbox.sh [image]        (default m-devbox:0.1.0-local)
 #
@@ -154,7 +154,7 @@ grep -q '^STDLIB_LIB=' <<<"$ENVDUMP" || fail "STDLIB_LIB missing from image ENV"
 echo "declared packages: ${PKGS[*]}"
 
 echo "== G2: known-answer digest through the driver seam (non-login shell) =="
-OUT="$(run "$IMG" m vista exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
+OUT="$(run "$IMG" m engine exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
 if grep -q "$KAT_ABC" <<<"$OUT"; then
   echo "KAT ok: sha256('abc') = $KAT_ABC"
 else
@@ -162,7 +162,7 @@ else
 fi
 
 echo "== G3: availability probes =="
-OUT="$(run "$IMG" m vista exec --engine ydb --transport local 'write $$available^STDCRYPTO(),":",$$available^STDCOMPRESS(),":",$$available^STDHTTP(),":",$$available^STDFS(),":",$$useCallout^STDCSPRNG()' 2>&1)"
+OUT="$(run "$IMG" m engine exec --engine ydb --transport local 'write $$available^STDCRYPTO(),":",$$available^STDCOMPRESS(),":",$$available^STDHTTP(),":",$$available^STDFS(),":",$$useCallout^STDCSPRNG()' 2>&1)"
 # Expected "1::1:1:1": STDCOMPRESS's available() returns "" on SUCCESS
 # (missing-library list; empty = both libz and libzstd loaded).
 if grep -q '1::1:1:1' <<<"$OUT"; then
@@ -173,7 +173,7 @@ fi
 
 echo "== G4 (informational): emptied ydb_xc_* =="
 OUT="$(timeout 30 docker run --rm -e ydb_xc_stdcrypto= "$IMG" \
-  m vista exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
+  m engine exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
 g4=$?
 if [ $g4 -eq 124 ]; then
   echo "HANG confirmed (timeout after 30s) — empty ydb_xc_* hangs the engine on first \$&; the image never ships this state (G1)"
@@ -185,7 +185,7 @@ fi
 
 echo "== G5 (informational): wired .xc, missing .so =="
 OUT="$(timeout 30 docker run --rm -e STDLIB_LIB=/nonexistent "$IMG" \
-  m vista exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
+  m engine exec --engine ydb --transport local 'write $$sha256^STDCRYPTO("abc")' 2>&1)"
 g5=$?
 if [ $g5 -eq 124 ]; then
   echo "HANG confirmed (timeout after 30s) — this is the state the in-build HANG-GUARD refuses"
@@ -288,7 +288,7 @@ for lib in m-stdlib f-stdlib; do
 done
 
 echo "== G10: FileMan resident — a FileMan API call through the seam =="
-OUT="$(run "$IMG" m vista exec --engine ydb --transport local \
+OUT="$(run "$IMG" m engine exec --engine ydb --transport local \
         'set DUZ=1,DUZ(0)="@",U="^" write "GET1=",$$GET1^DIQ(1,"1,",.01)' 2>&1)"
 if grep -q 'GET1=FILE' <<<"$OUT"; then
   echo "  ✓ \$\$GET1^DIQ(1,\"1,\",.01) = FILE — FileMan 22.2 is installed and answering"
@@ -429,11 +429,11 @@ echo "== G18: the m-vscode status probe is healthy over local (PR-23) =="
 # G20: it proves the override path still wins after the transport default was
 # removed. (Historic note: the "driver's REMOTE default" this once blamed was
 # never the driver's — it was m-cli's own kong default. See G20.)
-G18_OUT="$(timeout 60 docker run --rm "$IMG" m vista status --engine ydb --transport local -o json 2>&1)"; G18_RC=$?
+G18_OUT="$(timeout 60 docker run --rm "$IMG" m engine status --engine ydb --transport local -o json 2>&1)"; G18_RC=$?
 if [ "$G18_RC" -eq 0 ] \
    && printf '%s' "$G18_OUT" | grep -qE '"running":[[:space:]]*true' \
    && printf '%s' "$G18_OUT" | grep -qE '"healthy":[[:space:]]*true'; then
-  echo "  ✓ \`m vista status --engine ydb --transport local\`: running + healthy (the status chip's probe)"
+  echo "  ✓ \`m engine status --engine ydb --transport local\`: running + healthy (the status chip's probe)"
 else
   fail "G18: the extension's engine-status probe is not healthy (rc=$G18_RC)"$'\n'"$(printf '%s' "$G18_OUT" | tail -15)"
 fi
@@ -463,7 +463,7 @@ else
   fail "G19: Code Runner / m-run check failed (rc=$G19_RC)"$'\n'"$(printf '%s' "$G19_OUT" | tail -15)"
 fi
 
-echo "== G20: a FLAG-LESS \`m vista status\` resolves local (PR-25 residual) =="
+echo "== G20: a FLAG-LESS \`m engine status\` resolves local (PR-25 residual) =="
 # The residual PR-25 closed: a bare terminal `m vista` in this image, with NO
 # --transport, must reach the engine sitting right beside it. m-cli no longer
 # fabricates a transport the operator never expressed; it omits the flag and the
@@ -473,12 +473,12 @@ echo "== G20: a FLAG-LESS \`m vista status\` resolves local (PR-25 residual) =="
 # Asserting "transport":"local" in the payload — the value the DRIVER reports —
 # is what makes this a delegation gate and not merely a re-hardcoded default:
 # only the driver can put that field there (ADR D5).
-G20_OUT="$(timeout 60 docker run --rm "$IMG" m vista status --engine ydb -o json 2>&1)"; G20_RC=$?
+G20_OUT="$(timeout 60 docker run --rm "$IMG" m engine status --engine ydb -o json 2>&1)"; G20_RC=$?
 if [ "$G20_RC" -eq 0 ] \
    && printf '%s' "$G20_OUT" | grep -qE '"running":[[:space:]]*true' \
    && printf '%s' "$G20_OUT" | grep -qE '"healthy":[[:space:]]*true' \
    && printf '%s' "$G20_OUT" | grep -qE '"transport":[[:space:]]*"local"'; then
-  echo "  ✓ \`m vista status --engine ydb\` (no --transport): running + healthy, driver-resolved transport=local"
+  echo "  ✓ \`m engine status --engine ydb\` (no --transport): running + healthy, driver-resolved transport=local"
 else
   fail "G20: the flag-less vista probe did not resolve local (rc=$G20_RC)"$'\n'"$(printf '%s' "$G20_OUT" | tail -15)"
 fi
@@ -487,11 +487,11 @@ fi
 # governs the FORWARDING verbs and deliberately NOT the orchestrating ones —
 # `m test` pins its own transport because its staging lifecycle branches on it.
 # Without this control, a re-hardcoded local in m-cli would pass G20 unnoticed.
-G20B_OUT="$(timeout 60 docker run --rm -e M_YDB_TRANSPORT=remote "$IMG" m vista status --engine ydb -o json 2>&1)"; G20B_RC=$?
+G20B_OUT="$(timeout 60 docker run --rm -e M_YDB_TRANSPORT=remote "$IMG" m engine status --engine ydb -o json 2>&1)"; G20B_RC=$?
 if [ "$G20B_RC" -ne 0 ] && printf '%s' "$G20B_OUT" | grep -qi 'remote transport needs a host'; then
   echo "  ✓ negative control: M_YDB_TRANSPORT=remote IS honored by the forwarding verb (delegation is real, not a hardcoded local)"
 else
-  fail "G20b: M_YDB_TRANSPORT=remote was ignored by \`m vista status\` — m-cli is still fabricating a transport (rc=$G20B_RC)"$'\n'"$(printf '%s' "$G20B_OUT" | tail -15)"
+  fail "G20b: M_YDB_TRANSPORT=remote was ignored by \`m engine status\` — m-cli is still fabricating a transport (rc=$G20B_RC)"$'\n'"$(printf '%s' "$G20B_OUT" | tail -15)"
 fi
 
 echo "== G21: MD-D9 — the MSL/FSL reading trees are baked, current, and OFF the routine path =="

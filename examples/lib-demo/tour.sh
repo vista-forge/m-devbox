@@ -10,7 +10,7 @@
 #
 # Needs a writable container (the default `docker run`) — the install compiles
 # routines into /opt/lib/r. Engine access is the driver seam only (`m lib`,
-# `m vista exec`); that is the sanctioned path everywhere in this org.
+# `m engine exec`); that is the sanctioned path everywhere in this org.
 set -u
 
 DEMO=/opt/examples/lib-demo
@@ -29,13 +29,13 @@ must() {
 # Ask the engine for the greeting and require that it CANNOT give one — the
 # routine is not resident. We assert on what the ENGINE said, not on the exit
 # code: YottaDB reports an unresolvable routine as a message and still exits 0,
-# so `m vista exec` returns a green envelope carrying the error in `stderr`.
+# so `m engine exec` returns a green envelope carrying the error in `stderr`.
 # (The engine's own words are the lesson anyway — that %YDB-E-ZLINKFILE is what
 # a missing routine looks like in real life.)
 expect_absent() {
   local out
-  printf '\n  $ m vista exec --engine ydb -o text %s\n' "'write \$\$greet^GREETER(\"devbox\")'"
-  out="$(m vista exec --engine ydb -o text 'write $$greet^GREETER("devbox")' 2>&1)"
+  printf '\n  $ m engine exec --engine ydb -o text %s\n' "'write \$\$greet^GREETER(\"devbox\")'"
+  out="$(m engine exec --engine ydb -o text 'write $$greet^GREETER("devbox")' 2>&1)"
   printf '%s\n' "$out" | grep -v '^status ' | sed 's/^/  /'
   case "$out" in
     *"Hello, DEVBOX!"*) die "GREETER answered — it is resident when it should not be" ;;
@@ -92,9 +92,9 @@ returns : Hello, DEVBOX!
 means   : your code calls an installed library by name — no import ceremony.
           GREETER itself calls \$\$toUpperASCII^STDSTR, so this one line also
           proves an installed library can build on MSL underneath it."
-out="$(m vista exec --engine ydb -o text 'write $$greet^GREETER("devbox")' 2>&1)" \
+out="$(m engine exec --engine ydb -o text 'write $$greet^GREETER("devbox")' 2>&1)" \
   || die "greet call failed: $out"
-printf '\n  $ m vista exec --engine ydb -o text '\''write $$greet^GREETER("devbox")'\''\n'
+printf '\n  $ m engine exec --engine ydb -o text '\''write $$greet^GREETER("devbox")'\''\n'
 printf '%s\n' "$out" | sed 's/^/  /'
 case "$out" in *"Hello, DEVBOX!"*) : ;; *) die "unexpected greet output: $out" ;; esac
 

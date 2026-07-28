@@ -22,7 +22,7 @@
 # Engine access is ONLY through the driver stack (`m` / `m-ydb`). Raw
 # `docker exec` into an engine is forbidden org-wide and harness-denied; the
 # `docker run`s below launch the IMAGE UNDER TEST and then talk to it through
-# `m vista exec` / `m test`, which is the sanctioned seam.
+# `m engine exec` / `m test`, which is the sanctioned seam.
 
 IMAGE   ?= m-devbox:0.1.0-local
 CTX     ?= $(CURDIR)/.build-context

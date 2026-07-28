@@ -60,7 +60,7 @@ missing-image red by adding a pull to the gate.
 
 The `docker run`s in `scripts/verify-devbox.sh` and the `sweep` target launch
 **the image under test** and then talk to the engine inside it through
-`m vista exec` / `m test`. That is the sanctioned seam. A raw `docker exec`
+`m engine exec` / `m test`. That is the sanctioned seam. A raw `docker exec`
 into a running engine, a bare `mumps -direct`, or a hand-rolled transport is a
 red gate here as everywhere (org `CLAUDE.md`; a `PreToolUse` hook denies them).
 

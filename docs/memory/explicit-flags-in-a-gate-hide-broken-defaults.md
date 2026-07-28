@@ -16,7 +16,7 @@ repo's own battery, on two different inputs:
 2. **PR-25 / G20 (transport), 2026-07-25.** G18 asserted the m-vscode status
    probe **with `--transport local`** — which was itself the *workaround* the
    extension shipped in v0.4.1. So G18 was green for three days while a bare
-   `m vista status --engine ydb` in the same image still refused
+   `m engine status --engine ydb` in the same image still refused
    "remote transport needs a host." The gate was pinned to the workaround, so it
    could never see the defect the workaround was working around.
 

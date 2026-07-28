@@ -30,7 +30,7 @@
 # database below (GDE + mupip create) is image-construction provisioning, the
 # same category as ydbinstall's own in-build mumps use. VERIFYING the built
 # image executes M and therefore goes through the driver seam only — see
-# verify-devbox.sh (`m vista exec` / `m test`), never a raw exec.
+# verify-devbox.sh (`m engine exec` / `m test`), never a raw exec.
 #
 # Pins (recorded 2026-07-22, sync-time fetch):
 #   base       debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd

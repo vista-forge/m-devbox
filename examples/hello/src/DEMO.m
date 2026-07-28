@@ -185,7 +185,7 @@ tour    ; Print the guided tour. Called by the top label; safe to re-run.
         write "   m doc FSLDB        m doc FSLDD       m doc FSLQ",!
         write "   m lib list                          what is installed",!!
         write "The two demo files are still there — try them from a shell:",!
-        write "   m vista exec --engine ydb --transport local \",!
+        write "   m engine exec --engine ydb --transport local \",!
         write "     'set x=$$setup^DEMO() write $$read^FSLDB(999300,1,"""","""")'",!
         write "     -> widget 1 (HAMMER) as JSON, including its word-processing",!
         write "        NOTES and its ITEMS sub-records",!
