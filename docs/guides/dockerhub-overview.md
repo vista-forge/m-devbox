@@ -44,19 +44,19 @@ Six layers ship in this image. Each exists because the layer below it leaves
 something out.
 
 ```
-  +-------------------------------------+
-  |  your app  the code you write       |
-  +-------------------------------------+
-  |  FSL       FileMan Standard Library |
-  |  FM        VA FileMan 22.2          |
-  +-------------------------------------+
-  |  MSL       M Standard Library       |
-  +-------------------------------------+
-  |  m         developer toolchain      |
-  |  m-ydb     engine adapter           |
-  +-------------------------------------+
-  |  M engine  (YottaDB)                |
-  +-------------------------------------+
+  +----------------------------------------+
+  |  your app     (the code you write)     |
+  +----------------------------------------+
+  |  FSL          FileMan Standard Library |
+  |  FM           VA FileMan 22.2          |
+  +----------------------------------------+
+  |  MSL          M Standard Library       |
+  +----------------------------------------+
+  |  m            developer toolchain      |
+  |  m-ydb        engine adapter           |
+  +----------------------------------------+
+  |  M engine     (YottaDB)                |
+  +----------------------------------------+
 ```
 
 ### 1. YottaDB — the engine
