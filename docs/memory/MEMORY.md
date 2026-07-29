@@ -6,6 +6,8 @@ topic files. Shared coordination memory lives in the `docs` repo's
 
 ## Lessons (durable)
 
+- [⚠️ Publishing the image — the release path's refusals](publishing-the-image.md) — a Hub PAT CANNOT edit the description (403; needs a password session, so the page is a paste). Plus the 0.2.0 lessons: `check-image-provenance` compares the two arches' STAGED COMMITS, so never commit to a baked repo between the two builds; `source-bundle` refuses when a dep's HEAD moved past its pinned tag (check out the tag and restore, never re-tag HEAD); the version lives in a THIRD place, the org archive list.
+
 - [⚠️ A passwd row is an IMAGE obligation](passwd-row-is-an-image-obligation.md) — a fail-closed identity lookup + `CGO_ENABLED=0` (no NSS) means an injected uid refuses EVERY verb; the image owes the row, and a loud refusal for uids it can't serve. Red-proofed both ways.
 - [⚠️ The waterline scan reads STRING LITERALS](waterline-scan-reads-string-literals.md) — `m arch check` G2 matches a FileMan symbol in prose/comments exactly like a call (measured: two `write` strings naming filer entry points red-gated `examples/hello`); in an m-band repo name FileMan work in plain words.
 - [⚠️ P2 bake — routine-path & DB invariants](p2-bake-routine-path-and-db.md) — every `$ydb_routines` dir must EXIST before the first engine call (GDE rejects a missing one, exit 253); baked suites/examples must be ON the path because local `m test` does NOT stage (managed staging is docker-only — bears on PR-13, but `--stage-dir` DOES work on local); DB created VistA-sized ONCE before any global write. [[passwd-row-is-an-image-obligation]]

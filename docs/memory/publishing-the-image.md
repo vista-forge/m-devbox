@@ -54,3 +54,43 @@ Minor but it cost a real mistake: **`cp -f` does not defeat `alias cp='cp -i'`**
 The copy prompts, gets no stdin, and leaves the OLD file in place while
 reporting success — caught only by diffing checksums afterwards. Use
 `command cp --remove-destination`.
+
+---
+
+## Second release (0.2.0, 2026-07-28) — what the refusals taught
+
+Two gates refused this release before anything was pushed. Both were right, and
+neither failure mode is guessable from the runbook, so:
+
+**`check-image-provenance` compares the two arches' STAGED COMMITS, not their
+contents.** amd64 and arm64 are built minutes apart on different machines, and
+*any* sibling commit landing in between makes them different builds. Here it was
+a `conformance/REPORT.md` refresh in m-ydb — no code, but the provenance record
+must be identical. **Rebuild the earlier arch; never reason about whether the
+difference "matters".** Practical consequence: **do not run the conformance
+cadence, or anything else that commits to a baked repo, between the two
+builds.** Build both arches back to back.
+
+**`source-bundle` archives each dep at the version the image LINKS, so it
+refuses when a dep's HEAD has moved past its pinned tag.** Hit for clikit
+(HEAD past v0.11.1) and m-parse (HEAD past v0.5.1) — both had picked up memory
+commits after tagging. The remedy is to **check out the pinned tag, bundle, and
+restore** (`git checkout v0.11.1` → bundle → `git checkout main`), which is what
+the refusal text says. **Do NOT "fix" it by tagging HEAD and repinning** — that
+would publish a bundle for source the image does not contain.
+
+**The version lives in a THIRD place nobody remembers:** the org archive list in
+`.github/scripts/engine-image-archive.sh`. Bump it with m-devbox's `IMAGE`
+default, or the script keeps saving the current image under the *previous*
+version's filename — same bytes, misleading name, and the README's archive table
+silently becomes wrong. (m-devbox's own `Makefile` `IMAGE`/`IMAGE_ARM64`/
+`PUBLISH_TAG` and `README.md` are the first two places.)
+
+**Archiving arm64: the Mac has no `zstd`.** Stream `docker save` over the
+forwarded socket and compress on this box —
+`DOCKER_HOST=unix://$PWD/.mac-docker.sock docker save <img> | zstd -T0 -o …` —
+then write the `.id` beside it. Verify by *decompressing* and reading the tar's
+`manifest.json` `RepoTags`; a plausible file size proves nothing.
+
+**Keep the previous version's archives.** They are the recovery path for a tag
+that is still published (0.1.0 remains on the Hub after 0.2.0 ships).
