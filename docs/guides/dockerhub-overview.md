@@ -28,13 +28,17 @@ Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Cod
 
 M is one of the oldest languages still doing serious work: it runs a large share of the world's hospitals and core-banking systems. It is also famously hard to *start* with, because the ecosystem assumes you already have an engine, a database, and forty years of context. This image is the missing on-ramp.
 
+
 ```bash
+docker pull rafaelrichards/m-devbox:latest
+
+
 docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
   rafaelrichards/m-devbox
 ```
 
-Open **http://127.0.0.1:8080** — VS Code, in your browser, wired to a live
-engine. That mounts the directory you ran it from as your workspace.
+Then open http://127.0.0.1:8080 — VS Code in the browser, wired to a live YottaDB, with the directory you launched from mounted at /work.
+
 
 ---
 
