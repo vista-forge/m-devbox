@@ -18,7 +18,7 @@ docker run --rm --name m-devbox -p 127.0.0.1:8080:8080 -v "$PWD":/work \
 ```
 
 Then open **http://127.0.0.1:8080**. (Building it yourself instead? The local
-tag is `m-devbox:0.1.0-local` — see *For maintainers* below.)
+tag is `m-devbox:0.2.0-local` — see *For maintainers* below.)
 
 Use the IP, not `localhost` — the port is published on IPv4 loopback only, and
 `localhost` often resolves to IPv6 first, which shows `ERR_CONNECTION_REFUSED`
@@ -395,8 +395,8 @@ on the registry to come back:
 
 | Archive | Managed by |
 |---|---|
-| `m-devbox_0.1.0-local.tar.zst` (amd64) | the org archive script — change-detected, refreshed by `make archive` |
-| `m-devbox_0.1.0-local-arm64.tar.zst` | **manually**, saved from the remote build host |
+| `m-devbox_0.2.0-local.tar.zst` (amd64) | the org archive script — change-detected, refreshed by `make archive` |
+| `m-devbox_0.2.0-local-arm64.tar.zst` | **manually**, saved from the remote build host |
 
 ⚠️ The arm64 archive is a **point-in-time copy**. The org script saves images
 from the *local* daemon, and the arm64 image lives on the Apple Silicon host, so
@@ -447,7 +447,7 @@ its vendor, source repository, licence and documentation URL, so a consumer can
 ask the artifact itself rather than infer from the path:
 
 ```bash
-docker inspect --format '{{json .Config.Labels}}' rafaelrichards/m-devbox:0.1.0
+docker inspect --format '{{json .Config.Labels}}' rafaelrichards/m-devbox:0.2.0
 # org.opencontainers.image.vendor    vista-forge
 # org.opencontainers.image.source    https://github.com/vista-forge/m-devbox
 # org.opencontainers.image.licenses  AGPL-3.0-or-later
