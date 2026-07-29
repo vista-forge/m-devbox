@@ -24,30 +24,36 @@ Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Cod
 
 # m-devbox
 
-**A modern, integrated M (MUMPS) development environment in one container.** Start it, open a browser, and you are writing and running M code against a real database in about a minute — no compiler, no toolchain, nothing to install but Docker.
+**A modern, integrated M development environment - batteries included.** Start it, open a browser, and you are writing and running M code against a real database in about a minute — no compiler, no toolchain, nothing to install but Docker.
 
 M is one of the oldest languages still doing serious work: it runs a large share of the world's hospitals and core-banking systems. It is also famously hard to *start* with, because the ecosystem assumes you already have an engine, a database, and forty years of context. This image is the missing on-ramp.
 
-Pull the image
+
+## Get started in three steps
+
+__1. Pull the image__
 ```bash
 docker pull rafaelrichards/m-devbox:latest
 ```
 
-Run the image
+__2. Run the image__
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
   rafaelrichards/m-devbox
 ```
 
-Open http://127.0.0.1:8080. This is web-based VS Code, wired to a live M engine, with the directory you launched from mounted at /work.
+__3. Open the web developer console__  
+```bash
+open http://127.0.0.1:8080 
+```
+
+You will now have a web-based M development environment with the directory you launched from mounted at /work.  
 
 
----
 
-## The stack, from the metal up
+## The M developer stack, from the metal up
 
-Six layers ship in this image. Each exists because the layer below it leaves
-something out.
+Six layers ship in this image. Each exists because the layer below it leaves something out.
 
 ```
   +----------------------------------------+

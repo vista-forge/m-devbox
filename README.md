@@ -70,10 +70,9 @@ examples and both libraries. Everything below runs in the built-in terminal
 
 ---
 
-## The stack, from the metal up
+## The M developer stack, from the metal up
 
-Six layers ship in this image. Each exists because the layer below it leaves
-something out.
+Six layers ship in this image. Each exists because the layer below it leaves something out.
 
 ```
   +----------------------------------------+

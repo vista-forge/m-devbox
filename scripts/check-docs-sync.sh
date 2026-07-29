@@ -21,7 +21,7 @@ REPO="$(cd -- "$HERE/.." && pwd)"
 README="$REPO/README.md"
 HUB="$REPO/docs/guides/dockerhub-overview.md"
 
-START='## The stack, from the metal up'
+START='## The M developer stack, from the metal up'
 # The section ends where the next top-level heading begins; that heading differs
 # between the two files, so each names its own terminator.
 extract() { # $1 = file, $2 = end heading
