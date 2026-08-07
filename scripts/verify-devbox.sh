@@ -847,5 +847,32 @@ else
   fi
 fi
 
+# ── G28: M10/A20 — RSM hello from a COLD START, through the whole stack ─────
+# `docker run -e M_ENGINE=rsm … m test` must go green with no prior lifecycle
+# call by the caller: entrypoint starts the environment, R13 stages the suite
+# + its declared deps into a scratch UCI, and the FSL cases SKIP VISIBLY
+# (FileMan is ydb-resident; the skips are the not-available list, taught).
+echo "== G28: M10/A20 — cold-start rsm hello (suite + visible FSL skips) =="
+G28_OUT="$(timeout 240 docker run --rm -w /opt/examples/hello -e M_ENGINE=rsm "$IMG" m test tests 2>&1)"; G28_RC=$?
+G28_SCORE="$(printf '%s' "$G28_OUT" | mtest_score)"; G28_P="${G28_SCORE%% *}"; G28_F="${G28_SCORE##* }"
+if [ "$G28_RC" -eq 0 ] && [ "$G28_F" = 0 ] && [ "$G28_P" != NOTOK ] && [ "$G28_P" != ERR ] && [ "$G28_P" -ge 9 ] 2>/dev/null; then
+  echo "  ✓ cold start, M_ENGINE=rsm: DEMOTST green ($G28_P passed, 0 failed) with the FSL skips visible"
+else
+  fail "G28: cold-start rsm suite expected exit 0 / >=9 passed / 0 failed, got rc=$G28_RC passed=$G28_P failed=$G28_F"$'
+'"$(printf '%s' "$G28_OUT" | tail -12)"
+fi
+
+# ── G29: M10/A22 — Run Code parity: one .m, both engines, identical output ──
+echo "== G29: M10/A22 — m-run parity across engines =="
+G29_Y="$(timeout 120 docker run --rm "$IMG" m-run /opt/examples/hello/src/HELLO.m 2>&1)"; G29_YRC=$?
+G29_R="$(timeout 240 docker run --rm -e M_ENGINE=rsm "$IMG" m-run /opt/examples/hello/src/HELLO.m 2>&1)"; G29_RRC=$?
+if [ "$G29_YRC" -eq 0 ] && [ "$G29_RRC" -eq 0 ] && [ "$G29_Y" = "$G29_R" ] && [ -n "$G29_Y" ]; then
+  echo "  ✓ m-run HELLO.m: byte-identical output under M_ENGINE=ydb and M_ENGINE=rsm"
+else
+  fail "G29: m-run parity (ydb rc=$G29_YRC, rsm rc=$G29_RRC)"$'
+'"  ydb: $(printf '%s' "$G29_Y" | head -3)"$'
+'"  rsm: $(printf '%s' "$G29_R" | head -3)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc

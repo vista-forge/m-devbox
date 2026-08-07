@@ -14,3 +14,10 @@ rules = "identity"
 
 [lsp]
 "hover.format" = "markdown"
+
+# Dependency routines for STAGED runs (R13/M10). On YottaDB these modules are
+# ALSO resident in /opt/lib/r (ambient), so pre-R13 runs never needed this;
+# a staged run — every RSM run, since a scratch UCI sees only its own
+# routines plus %* — loads its dependencies from this source tree instead.
+[dependencies]
+routines = ["/opt/msl/src", "src"]

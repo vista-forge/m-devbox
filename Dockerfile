@@ -46,6 +46,13 @@
 #              sha256 10ab65469dd21cab7b177e9fc97ad7e85604b75c9ca140e5e8bdd9fc23f7119d
 #   rainbow-csv mechatroner.rainbow-csv v3.24.1 (Open VSX .vsix)
 #              sha256 0ecb7da3fb2a54517cd41fce8e858d6276ea8523bed6fbfd64d5ed281bd7514a
+#   RSM        Reference-Standard-M @ ad679d0e9d82558daa930d87d35ca36833b7dff6
+#              (V1.83.1 — the same pin as m-standard's source replica and the
+#              m-test-rsm engine; staged as a verified export, never cloned
+#              at build). Volume geometry 64 KiB blocks: a routine's compiled
+#              object must fit ONE node (block − 54; m-rsm M9), and 64 KiB is
+#              the ceiling's maximum — beyond it a node cannot out-carry
+#              MAX_STR_LEN.
 #   FileMan    WorldVistA/VistA-VEHU-M @ 62622e63fc7dffad27fc79f107fd7689c2ac4eff
 #              (Packages/VA FileMan/Routines) — the pin lives in
 #              vista-fileman/scripts/seed/source.pin and every routine byte is
@@ -96,6 +103,17 @@ COPY m-stdlib/ /build/m-stdlib/
 # linux-x86_64 — on an arm64 build this stage produces aarch64 .so unchanged).
 RUN m callouts install --engine ydb --source /build/m-stdlib \
       --so-dir /opt/stdlib/lib --xc-dir /opt/stdlib/xc
+
+# ── rsm-builder: the third engine, built from the pinned export (M10) ───────
+# Same base as everything else (build env == runtime env). RSM is a small C
+# build; gcc/make live only in this throwaway stage.
+FROM base AS rsm-builder
+RUN apt-get update && apt-get install -y --no-install-recommends gcc make libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+ARG RSM_REF=ad679d0e9d82558daa930d87d35ca36833b7dff6
+COPY rsm-src/ /build/rsm/
+RUN test "$(cat /build/rsm/.git-export-stamp/ref)" = "$RSM_REF" || { echo "rsm-src is off-pin" >&2; exit 1; }; \
+    cd /build/rsm && make -j "$(nproc)" && make install
 
 # ── final image ─────────────────────────────────────────────────────────────
 FROM base
@@ -149,8 +167,25 @@ ENV ydb_routines="/opt/lib/r /opt/msl/tests /opt/fsl/tests /opt/examples/hello/s
 # ENTRYPOINT — it is a runtime-only concern (build steps pass --engine ydb
 # explicitly) and placing it after the expensive bake layers keeps them cached.
 
-COPY m m-ydb /usr/local/bin/
+COPY m m-ydb m-rsm /usr/local/bin/
 ENV PATH=/usr/local/bin:$PATH
+
+# ── RSM: the third engine, as a working REFERENCE (M10, operator ruling) ────
+# RSM is here to show hello world and the MSL's portable subset running on a
+# solo-maintainer standard-M engine — never to chase ydb/iris parity. The
+# volume is created at BAKE (image-construction provisioning, the same Q1
+# category as the GDE/mupip step below); everything that EXECUTES M against
+# it at runtime goes through the m-rsm driver.
+COPY --from=rsm-builder /usr/local/bin/rsm /usr/local/bin/rsm
+COPY --from=rsm-builder /build/rsm/utils.rsm /opt/rsm/utils.rsm
+ENV RSM_DBFILE=/opt/rsm/rsm.dat \
+    M_RSM_DBFILE=/opt/rsm/rsm.dat \
+    M_RSM_TRANSPORT=local
+RUN set -e; cd /opt/rsm; \
+    rsm -v RSM -b 64 -s 1024; \
+    rsm -j 4; \
+    rsm -x 'open 1:("utils.rsm":"read") use 1 read code xecute code'; \
+    rsm -k
 
 # ── P2 bake, step 1: the empty database, VistA-SIZED ─────────────────────────
 # Image-construction provisioning (Q1 ruling — see header): create the DB the
@@ -186,6 +221,21 @@ RUN set -e; \
     m lib install --engine ydb --name f-stdlib /build/f-stdlib/src; \
     m lib list --engine ydb; \
     rm -rf /build
+
+# MSL into the RSM volume (M10): resident in the manager UCI, loaded through
+# the DRIVER under a run bracket — runtime engine access stays on the seam
+# even at bake. --no-compile is the honest lane: a module whose bytecode the
+# engine cannot produce stays object-less and faults loudly at REFERENCE
+# (the measured RSM behavior); the "what works on RSM" page enumerates the
+# portable subset, and baking everything keeps the not-available list a
+# MEASURED fact rather than a curated guess.
+COPY m-stdlib/src /build/msl-src
+RUN set -e; \
+    rsm -j 4; \
+    m runlock hold --engine rsm -- sh -c \
+      'm-rsm exec load --no-compile /build/msl-src --run-lock "$M_RUN_LOCK_TOKEN" -o text >/dev/null'; \
+    rsm -k; \
+    rm -rf /build/msl-src
 
 # ── P2 bake, step 3: standalone FileMan 22.2, installed inside `docker build` ─
 # The vista-fileman build.sh local transport as a RUN step (§5.2(a) / PR-10):
@@ -309,7 +359,7 @@ RUN set -eu; \
     useradd -m -u 1000 -g 0 -s /bin/bash devbox; \
     getent passwd devbox >/dev/null; \
     chgrp 0 /etc/passwd; chmod g=u /etc/passwd; \
-    for d in /data /opt/lib /opt/msl /opt/fsl /opt/examples /opt/stdlib /work /home/devbox; do \
+    for d in /data /opt/lib /opt/msl /opt/fsl /opt/examples /opt/stdlib /opt/rsm /work /home/devbox; do \
       chgrp -R 0 "$d"; chmod -R g=u "$d"; \
     done
 COPY entrypoint.sh /usr/local/bin/devbox-entrypoint

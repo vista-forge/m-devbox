@@ -153,6 +153,7 @@ stage_vsix rainbow-csv "$RAINBOWCSV_VERSION" "$RAINBOWCSV_VSIX_SHA256" "$RAINBOW
 # fallback, and until 2026-07-27 the binaries were actually built with cgo ON.
 ( cd "$FORGE/m-cli" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOWORK=off go build -o "$CTX/m" . )
 ( cd "$FORGE/m-ydb" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOWORK=off go build -o "$CTX/m-ydb" . )
+( cd "$FORGE/m-rsm" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOWORK=off go build -o "$CTX/m-rsm" . )
 
 assert_pinned() { # $1 = binary, $2 = source repo dir
   local bin="$1" repo="$2" bad=0 dep ver
@@ -177,6 +178,25 @@ assert_pinned() { # $1 = binary, $2 = source repo dir
 }
 assert_pinned "$CTX/m"     "$FORGE/m-cli"
 assert_pinned "$CTX/m-ydb" "$FORGE/m-ydb"
+assert_pinned "$CTX/m-rsm" "$FORGE/m-rsm"
+
+# ── RSM engine source: the PINNED export (M10) ──────────────────────────────
+# m-rsm's image/build.sh clones RSM at the org pin (a sync-time action) and
+# stamps the export with the resolved ref. Staging never clones — it consumes
+# that export and REFUSES when it is absent or off-pin, so the devbox engine
+# and m-standard's language-surface replica always describe ONE build.
+RSM_COMMIT=ad679d0e9d82558daa930d87d35ca36833b7dff6
+rsm_src="$FORGE/m-rsm/image/rsm-src"
+if [ ! -f "$rsm_src/.git-export-stamp/ref" ]; then
+  echo "stage: RSM source export missing — run m-rsm/image/build.sh once (sync time) to produce it" >&2
+  exit 1
+fi
+if [ "$(cat "$rsm_src/.git-export-stamp/ref")" != "$RSM_COMMIT" ]; then
+  echo "stage: RSM export is at $(cat "$rsm_src/.git-export-stamp/ref"), pin is $RSM_COMMIT — re-export before staging" >&2
+  exit 1
+fi
+cp -a "$rsm_src" "$CTX/rsm-src"
+echo "stage: rsm-src — pinned export $RSM_COMMIT"
 
 # ── m-stdlib: the MSL unit — callout sources (builder stage) AND the library
 #    install unit (final-stage `m lib install`) live under one staged dir ─────
@@ -332,7 +352,7 @@ EXPECTED=(
   Dockerfile entrypoint.sh code-server-launch.sh m-run.sh
   code-server-defaults-settings.json devbox.code-workspace
   ydbinstall.sh code-server.deb code-runner.vsix errorlens.vsix rainbow-csv.vsix
-  m m-ydb
+  m m-ydb m-rsm rsm-src
   m-stdlib f-stdlib msl-tests fsl-tests msl-lib fsl-lib
   fileman examples m-vscode licenses
   context.provenance

@@ -54,4 +54,19 @@ fi
 HOME="$(getent passwd "$uid" | cut -d: -f6)"
 export HOME
 
+# ── M10: start the RSM environment when it is the selected engine ───────────
+# Idempotent (lifecycle up on an up environment is a no-op) and LOUD on
+# failure (Q15): a cold `docker run -e M_ENGINE=rsm … m test` must never meet
+# a down engine three layers later. Driver-backed under a run bracket — the
+# entrypoint hand-rolls no engine access.
+if [ "${M_ENGINE:-ydb}" = "rsm" ]; then
+  # Quiet on success (the user's command owns stdout), whole on failure.
+  if ! up_out="$(m runlock hold --engine rsm -o text -- sh -c \
+      'm-rsm lifecycle up --run-lock "$M_RUN_LOCK_TOKEN" -o text >/dev/null' 2>&1)"; then
+    printf '%s\n' "$up_out" >&2
+    echo "devbox: FATAL — the RSM environment did not come up (m-rsm lifecycle up failed)" >&2
+    exit 1
+  fi
+fi
+
 exec "$@"
