@@ -251,8 +251,14 @@ fi
 mtest_score() {
   python3 -c '
 import json, sys
+raw = sys.stdin.read()
+# The stream may carry NARRATION before the envelope (stderr is merged, and
+# the toolchain prints sanctioned warnings there — e.g. the R13 read-only
+# fallback notice). Find the envelope rather than requiring it to be alone:
+# the same tolerance the m-driver-sdk client learned at m-rsm M9.
+i = raw.find("{")
 try:
-    d = json.loads(sys.stdin.read())
+    d = json.loads(raw[i:] if i >= 0 else raw)
 except Exception:
     print("ERR ERR"); raise SystemExit
 g = d.get("data") or {}

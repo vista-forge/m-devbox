@@ -137,10 +137,11 @@ ENV ydb_gbldir=/data/m.gld
 # `m lib install` and the FileMan build compile into (dirs[0]) and that YDB
 # writes .o beside .m in (PR-12; the arbitrary-uid layer keeps it writable for
 # a non-root uid). The library + example TEST/SRC dirs MUST also be on the path:
-# on the LOCAL transport `m test` does NOT stage a suite (the managedStaging cap
-# is docker-only — m-cli staging.go), so a suite is only runnable when its dir
-# is on $ydb_routines. The baked acceptance suites (MSL/FSL) and the
-# examples/hello starter are therefore listed here so `m test` resolves them.
+# a suite must be resolvable on $ydb_routines for the READ-ONLY runtime case:
+# since R13 (2026-08-07) local `m test` DOES stage when the driver advertises
+# managedStaging, but a read-only rootfs cannot stage and falls back LOUDLY to
+# ambient resolution — which only works because these dirs are on the path and
+# their objects are baked (see the explicit zlink step below).
 # (A user's OWN, non-baked project needs its dir added to $ydb_routines too —
 # the devcontainer/workspace concern, P3 / PR-13.) The util .so is read-only.
 ENV ydb_routines="/opt/lib/r /opt/msl/tests /opt/fsl/tests /opt/examples/hello/src /opt/examples/hello/tests /opt/yottadb/current/libyottadbutil.so"
@@ -254,8 +255,29 @@ COPY licenses/ /opt/licenses/
 #       `m lib install`; the deterministic fix belongs in the image bake here.)
 # verify-devbox.sh G16 proves the whole thing under `--read-only`. (A user's OWN
 # routines in /work still ZLINK at runtime and want a writable object dir — PR-13.)
-RUN m test --engine ydb /opt/examples/hello/tests >/dev/null; \
-    find /opt/lib/r /opt/examples -name '*.o' -exec touch {} +
+#
+# The .o files are compiled EXPLICITLY (R13 fallout, 2026-08-07): the bake-time
+# `m test` used to leave objects beside the sources only as a SIDE EFFECT of
+# the pre-R13 "local never stages" behavior — an accidentally load-bearing
+# constraint. m-cli now stages local runs (managedStaging negotiated on the
+# cap), compiling into an mtest-* stage that is UNSTAGED after, so the gate
+# run no longer bakes objects. Every dir a read-only runtime must resolve
+# ambiently is zlinked deliberately instead; the accident is now a step.
+# ZLINK by NAME, never by path: a path-form zlink writes the object to the
+# build step's CWD (measured: a full-path loop baked stray .o into /), while
+# the name form resolves via $ydb_routines and places the object BESIDE its
+# source — the location the read-only runtime resolves ambiently. The
+# sentinel test at the end reds the build if placement ever drifts again.
+RUN set -e; \
+    for d in /opt/msl/tests /opt/fsl/tests /opt/examples/hello/src /opt/examples/hello/tests; do \
+      for f in "$d"/*.m; do \
+        n="$(basename "$f" .m)"; \
+        m engine exec --engine ydb --transport local "zlink \"$n\"" >/dev/null; \
+      done; \
+    done; \
+    test -f /opt/examples/hello/tests/DEMOTST.o || { echo "bake: zlink objects did not land beside their sources" >&2; exit 1; }; \
+    m test --engine ydb /opt/examples/hello/tests >/dev/null; \
+    find /opt/lib/r /opt/examples /opt/msl/tests /opt/fsl/tests -name '*.o' -exec touch {} +
 
 # ── PR-6: the arbitrary-uid layer ───────────────────────────────────────────
 # MEASURED 2026-07-22 on the unfixed candidate: `docker run --user 1000:1000`
