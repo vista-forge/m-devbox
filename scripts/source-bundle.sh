@@ -90,26 +90,47 @@ fi
 # `m-devbox (DIRTY)` while the bundle captured those same edits post-commit —
 # almost certainly identical content, and unprovable either way. Unprovable is
 # the whole failure mode here, so it reds.
+# ARCHIVE THE STAGED COMMIT, do not merely assert HEAD still equals it
+# (2026-08-08). This block used to refuse whenever a repo's HEAD had MOVED,
+# because the archive loop below took HEAD — so any unrelated commit (the
+# nightly report-refresh crons do this routinely) invalidated a release
+# bundle for an image those commits never touched. The correspondence the
+# AGPL asks for is to the code the IMAGE WAS BUILT FROM, which provenance
+# records exactly; archiving that commit makes the bundle correspond BY
+# CONSTRUCTION rather than by the accident of nothing having moved.
+# What still refuses, because it is genuinely unarchivable or unobtainable:
+# a repo staged DIRTY, a staged commit that no longer exists, or one that is
+# not on any remote (a recipient could not fetch it).
+declare -A STAGED=()
 PROV="$REPO/.build-context/context.provenance"
 if [ -f "$PROV" ]; then
-  mismatch=()
+  mismatch=(); moved=()
   while read -r name sha rest; do
     case "$name" in staged-from:|fileman-src|"") continue ;; esac
     d="$FORGE/$name"; [ -d "$d/.git" ] || continue
     head="$(git -C "$d" rev-parse --short HEAD)"
     if [ -n "${rest:-}" ]; then
       mismatch+=("$name staged DIRTY — the image was built from uncommitted work")
-    elif [ "$head" != "$sha" ]; then
-      mismatch+=("$name staged $sha but HEAD is now $head")
+    elif ! git -C "$d" cat-file -e "$sha^{commit}" 2>/dev/null; then
+      mismatch+=("$name staged $sha, which no longer exists in that repo")
+    elif [ -z "$(git -C "$d" branch -r --contains "$sha" 2>/dev/null)" ]; then
+      mismatch+=("$name staged $sha, which is on NO remote branch — a recipient could not fetch it")
+    else
+      STAGED["$name"]="$sha"
+      [ "$head" = "$sha" ] || moved+=("$name: HEAD is now $head; archiving the staged $sha")
     fi
   done < "$PROV"
   if [ "${#mismatch[@]}" -gt 0 ]; then
     echo "source-bundle: REFUSED — the bundle would not correspond to the built image:" >&2
     printf '    %s\n' "${mismatch[@]}" >&2
-    echo "  Re-run 'make build' so the image is staged from these commits, then bundle." >&2
+    echo "  Re-run 'make build' so the image is staged from committed, pushed code, then bundle." >&2
     exit 4
   fi
-  echo "source-bundle: provenance check ok — every repo matches what the image was staged from"
+  if [ "${#moved[@]:-0}" -gt 0 ]; then
+    echo "source-bundle: repos have moved since the build — the bundle follows the IMAGE, not HEAD:"
+    printf '    %s\n' "${moved[@]}"
+  fi
+  echo "source-bundle: provenance check ok — every repo archivable at the commit the image was staged from"
 else
   echo "source-bundle: WARNING — no build context at $PROV; correspondence to the image is UNVERIFIED" >&2
 fi
@@ -121,26 +142,40 @@ fi
 # must agree on the SDK. Without this, the tarball could ship dep source that
 # is newer or older than what the binaries embed, and "corresponding" would be
 # a lie told politely.
-sdk_cli="$(awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}' "$FORGE/m-cli/go.mod")"
-sdk_ydb="$(awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}' "$FORGE/m-ydb/go.mod")"
+# go.mod is read AT THE ARCHIVED COMMIT (staged_gomod), so the pins graded are
+# the ones the shipped binaries were built against — not whatever HEAD carries
+# now. Same reason the archive loop follows provenance.
+staged_gomod() { # $1 = repo
+  local d="$FORGE/$1" sha="${STAGED[$1]:-}"
+  if [ -n "$sha" ]; then git -C "$d" show "$sha:go.mod"; else cat "$d/go.mod"; fi
+}
+sdk_cli="$(staged_gomod m-cli | awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}')"
+sdk_ydb="$(staged_gomod m-ydb | awk '$1=="github.com/vista-forge/m-driver-sdk" {print $2}')"
 if [ "$sdk_cli" != "$sdk_ydb" ]; then
   echo "source-bundle: REFUSED — SDK pin skew: m-cli pins $sdk_cli, m-ydb pins $sdk_ydb" >&2
   exit 5
 fi
 pin_bad=()
 for dep in clikit m-driver-sdk m-parse; do
-  pin="$(awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}' "$FORGE/m-cli/go.mod")"
-  [ -n "$pin" ] || { pin="$(awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}' "$FORGE/m-ydb/go.mod")"; }
+  pin="$(staged_gomod m-cli | awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}')"
+  [ -n "$pin" ] || { pin="$(staged_gomod m-ydb | awk -v d="github.com/vista-forge/$dep" '$1==d {print $2}')"; }
   [ -n "$pin" ] || continue
-  if ! git -C "$FORGE/$dep" tag --points-at HEAD | grep -qx "$pin"; then
-    pin_bad+=("$dep: consumers pin $pin but HEAD ($(git -C "$FORGE/$dep" rev-parse --short HEAD)) does not carry that tag")
+  # The dep is ARCHIVED AT ITS PINNED TAG below, so the tag must EXIST; it need
+  # not sit at HEAD (a dep that has moved on is not a correspondence problem
+  # once the bundle follows the pin rather than the branch).
+  if ! git -C "$FORGE/$dep" rev-parse -q --verify "refs/tags/$pin^{commit}" >/dev/null; then
+    pin_bad+=("$dep: consumers pin $pin, but that tag does not exist in the repo")
+  elif [ -z "$(git -C "$FORGE/$dep" branch -r --contains "refs/tags/$pin" 2>/dev/null)" ]; then
+    pin_bad+=("$dep: pinned tag $pin is on no remote branch — a recipient could not fetch it")
+  else
+    STAGED["$dep"]="$(git -C "$FORGE/$dep" rev-parse "refs/tags/$pin^{commit}")"
   fi
 done
 if [ "${#pin_bad[@]}" -gt 0 ]; then
   echo "source-bundle: REFUSED — the archived dep repos would not be the pinned versions:" >&2
   printf '    %s
 ' "${pin_bad[@]}" >&2
-  echo "  Tag the dep at HEAD and repin the consumers (or check out the pinned tag), then re-bundle." >&2
+  echo "  Tag the dep at the pinned version and push it, then re-bundle." >&2
   exit 5
 fi
 echo "source-bundle: pin consistency ok — deps tagged at the pinned versions; one SDK ($sdk_cli) across both binaries"
@@ -157,10 +192,14 @@ mkdir -p "$WORK/$NAME" "$OUT"
   printf '%-16s %-12s %s\n' "REPO" "COMMIT" "STATE"
   for r in "${REPOS[@]}"; do
     d="$FORGE/$r"
-    sha="$(git -C "$d" rev-parse HEAD)"
-    state="clean"
-    git -C "$d" diff --quiet HEAD 2>/dev/null || state="DIRTY-NOT-CORRESPONDING"
-    git -C "$d" archive --format=tar --prefix="$NAME/$r/" HEAD \
+    # The commit the IMAGE was staged from (provenance), or its pinned tag for
+    # a dep repo; HEAD only when neither applies. This is what makes the
+    # tarball correspond to the published artifact.
+    ref="${STAGED[$r]:-HEAD}"
+    sha="$(git -C "$d" rev-parse "$ref")"
+    state="as-built"
+    [ "$ref" = "HEAD" ] && state="HEAD-no-provenance-row"
+    git -C "$d" archive --format=tar --prefix="$NAME/$r/" "$sha" \
       | tar -xf - -C "$WORK"
     printf '%-16s %-12s %s\n' "$r" "${sha:0:12}" "$state"
   done
