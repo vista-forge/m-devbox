@@ -59,6 +59,7 @@ REPOS=(
   clikit        # linked into m / m-ydb
   m-driver-sdk  # linked into m / m-ydb
   m-parse       # linked into m
+  m-rsm         # the RSM driver + the engine image recipe (M10)
   m-stdlib      # MSL routines + native callout sources
   f-stdlib      # FSL routines
   m-vscode      # the baked .vsix
@@ -163,6 +164,17 @@ mkdir -p "$WORK/$NAME" "$OUT"
       | tar -xf - -C "$WORK"
     printf '%-16s %-12s %s\n' "$r" "${sha:0:12}" "$state"
   done
+  # The RSM ENGINE's corresponding source (AGPL): the image ships the compiled
+  # binary, so the pinned upstream export rides in the bundle verbatim.
+  rsm_src="$FORGE/m-rsm/image/rsm-src"
+  if [ -f "$rsm_src/.git-export-stamp/ref" ]; then
+    mkdir -p "$WORK/$NAME/rsm-upstream"
+    cp -a "$rsm_src/." "$WORK/$NAME/rsm-upstream/"
+    printf '%-16s %-12s %s\n' "rsm-upstream" "$(cut -c1-12 "$rsm_src/.git-export-stamp/ref")" "pinned-export"
+  else
+    echo "source-bundle: REFUSED — RSM source export missing (the image ships its binary; the bundle must ship its source)" >&2
+    exit 5
+  fi
 } > "$WORK/$NAME/COMMITS.txt"
 
 cat > "$WORK/$NAME/README.md" <<EOF

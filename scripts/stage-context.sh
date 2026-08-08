@@ -273,6 +273,10 @@ mkdir -p "$CTX/licenses"
 cp "$FORGE/clikit/LICENSE" "$CTX/licenses/Apache-2.0.txt"
 cp "$REPO/LICENSE"         "$CTX/licenses/AGPL-3.0.txt"
 cp "$REPO/NOTICE"          "$CTX/licenses/NOTICE"
+# RSM ships in the image (compiled binary + its source-built volume), so its
+# AGPL text and notice ride in /opt/licenses like everything else (M10).
+cp "$FORGE/m-rsm/image/rsm-src/COPYING"     "$CTX/licenses/RSM-COPYING.txt"
+cp "$FORGE/m-rsm/image/rsm-src/NOTICE.adoc" "$CTX/licenses/RSM-NOTICE.adoc"
 
 # ── FileMan: pinned source + build scripts (installed in-build, §5.2(a)) ─────
 # The fileman source is pinned to an immutable commit and verified

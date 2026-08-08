@@ -31,6 +31,15 @@ ENGINE AND BASE
   ydbinstall.sh                           — AGPL-3.0-or-later (YottaDB LLC),
       fetched from gitlab.com/YottaDB/DB/YDB at a pinned commit.
 
+  Reference Standard M (RSM) V1.83.1       — AGPL-3.0-or-later (David Wicksell,
+      Fourth Watch Software LC). Compiled at build time from the org's pinned
+      source export (gitlab.com/Reference-Standard-M/rsm @ ad679d0e9d), never
+      pulled. Present as the devbox's third engine — a working REFERENCE for
+      standard M (see docs/guides/what-works-on-rsm.md in the m-rsm repo).
+      Its licence text and notice ride at /opt/licenses/RSM-COPYING.txt and
+      /opt/licenses/RSM-NOTICE.adoc; its corresponding source is included in
+      the release's source bundle.
+
   Debian GNU/Linux (trixie-slim, pinned by digest) and the runtime packages
       installed into it (libcurl, libssl, zlib, libzstd) — the licenses of
       their respective Debian source packages.

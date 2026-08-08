@@ -18,8 +18,9 @@ for.
 
 ## What is inside
 
-All **ten** contributing repositories, each archived at the exact commit the
-image was staged from, plus `COMMITS.txt` naming every one of those commits,
+All **eleven** contributing repositories, each archived at the exact commit
+the image was staged from, plus the pinned RSM engine source export
+(`rsm-upstream/`), plus `COMMITS.txt` naming every one of those commits,
 the `NOTICE` inventory, the `LICENSE`, and a README explaining what is *not*
 included and where to get it.
 

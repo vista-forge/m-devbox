@@ -24,7 +24,7 @@
 # `docker run`s below launch the IMAGE UNDER TEST and then talk to it through
 # `m engine exec` / `m test`, which is the sanctioned seam.
 
-IMAGE   ?= m-devbox:0.2.0-local
+IMAGE   ?= m-devbox:0.3.0-local
 CTX     ?= $(CURDIR)/.build-context
 ARCHIVE ?= $(HOME)/data/vista-forge/images
 
@@ -37,7 +37,7 @@ help: ## Show this help
 # ── sync time (network) ─────────────────────────────────────────────────────
 
 ARCH        ?= amd64
-IMAGE_ARM64 ?= m-devbox:0.2.0-local-arm64
+IMAGE_ARM64 ?= m-devbox:0.3.0-local-arm64
 
 # Remote arm64 builder. The image build RUNS the engine (GDE, mupip create,
 # `m lib install`, FileMan DINIT), and YottaDB refuses to verify itself under
@@ -162,7 +162,7 @@ sweep: ## Offline: the FULL MSL suite sweep on the image (a measurement, not a g
 # `latest`. Offering one to our users is a different question, and ease of a
 # first run wins.
 REGISTRY ?= docker.io/rafaelrichards
-PUBLISH_TAG ?= 0.2.0
+PUBLISH_TAG ?= 0.3.0
 
 publish: ## SYNC-TIME: push BOTH arches + a multi-arch manifest (REFUSES without PUBLISH_OK=1)
 	@if [ "$(PUBLISH_OK)" != "1" ]; then \
