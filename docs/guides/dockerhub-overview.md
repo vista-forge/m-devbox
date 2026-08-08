@@ -15,7 +15,7 @@ page.
 **Short description** (100-char field):
 
 ```
-Learn and build on M/MUMPS: YottaDB, FileMan, two standard libraries, and VS Code — one container.
+Learn and build on M/MUMPS: YottaDB + RSM, FileMan, standard libraries, VS Code — one container.
 ```
 
 ---
@@ -65,27 +65,37 @@ Six layers ship in this image. Each exists because the layer below it leaves som
   |  MSL          M Standard Library       |
   +----------------------------------------+
   |  m            M developer toolchain    |
-  |  m-driver     (m-ydb)                  |
+  |  m-drivers    (m-ydb, m-rsm)           |
   +----------------------------------------+
-  |  M engine     (YottaDB)                |
+  |  M engines    (YottaDB; RSM reference) |
   +----------------------------------------+
 ```
 
-### 1. M engine (YottaDB)
+### 1. M engines (YottaDB, plus RSM as a reference)
 
-The database and the language runtime in one. It stores hierarchical, sparse
-key-value structures called **globals**, and it is serious infrastructure: ACID
-transactions, journaling, replication, and a lineage (GT.M) that has run
-national-scale banking and health systems for decades. Already installed,
-initialised and running here.
+The database and the language runtime in one. YottaDB stores hierarchical,
+sparse key-value structures called **globals**, and it is serious
+infrastructure: ACID transactions, journaling, replication, and a lineage
+(GT.M) that has run national-scale banking and health systems for decades.
+Already installed, initialised and running here.
 
-### 2. m-driver (m-ydb)
+Since 0.3.0 a second engine rides along: **Reference Standard M** (RSM, Fourth
+Watch Software) — a solo-maintainer implementation of the M standard itself.
+Set `M_ENGINE=rsm` and the same tools, tests and Run Code work against it.
+It is a working *reference*, not a YottaDB alternative: the portable core of
+the standard library runs on it, and what does not — transactions, call-outs,
+the `$Z` extensions — is documented rather than discovered (see
+"what works on RSM" in the m-rsm repository).
 
-YottaDB is operated through a family of specialist utilities — `mupip`, `gde`,
-`dse`, `lke` — plus rules about process lifecycle and locking. `m-ydb` is the
-**vendor adapter** that hides all of that behind one neutral contract, so the
-tools above it never learn YottaDB-specific commands. You will rarely call it
-directly. It is what keeps everything above portable across M engines.
+### 2. m-drivers (m-ydb, m-rsm)
+
+Each engine is operated through its own specialist surface — YottaDB via
+`mupip`/`gde`/`dse`/`lke`, RSM via its `rsm` runtime — plus rules about
+process lifecycle and locking. The drivers are the **vendor adapters** that
+hide all of that behind one neutral contract, so the tools above them never
+learn engine-specific commands. You will rarely call one directly. They are
+what keeps everything above portable across M engines — and the reason
+`M_ENGINE=rsm` is a one-variable switch.
 
 ### 3. `m` — the developer inner loop
 
