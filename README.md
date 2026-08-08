@@ -84,10 +84,13 @@ Six layers ship in this image. Each exists because the layer below it leaves som
   |  MSL          M Standard Library       |
   +----------------------------------------+
   |  m            M developer toolchain    |
-  |  m-drivers    (m-ydb, m-rsm)           |
-  +----------------------------------------+
-  |  M engines    (YottaDB; RSM reference) |
-  +----------------------------------------+
+  |  m-driver-sdk (one neutral contract)   |
+  +-------------------+--------------------+
+  |  m-ydb            |  m-rsm             |
+  +-------------------+--------------------+
+  |  YottaDB          |  RSM               |
+  |  (production)     |  (reference)       |
+  +-------------------+--------------------+
 ```
 
 ### 1. M engines (YottaDB, plus RSM as a reference)
@@ -106,15 +109,16 @@ the standard library runs on it, and what does not — transactions, call-outs,
 the `$Z` extensions — is documented rather than discovered (see
 "what works on RSM" in the m-rsm repository).
 
-### 2. m-drivers (m-ydb, m-rsm)
+### 2. m-driver-sdk and the drivers (m-ydb, m-rsm)
 
 Each engine is operated through its own specialist surface — YottaDB via
 `mupip`/`gde`/`dse`/`lke`, RSM via its `rsm` runtime — plus rules about
-process lifecycle and locking. The drivers are the **vendor adapters** that
-hide all of that behind one neutral contract, so the tools above them never
-learn engine-specific commands. You will rarely call one directly. They are
-what keeps everything above portable across M engines — and the reason
-`M_ENGINE=rsm` is a one-variable switch.
+process lifecycle and locking. `m-driver-sdk` is the **one neutral
+contract**; each driver is the vendor adapter that realizes it for its
+engine, so the tools above never learn engine-specific commands. You will
+rarely call a driver directly. This layer is what keeps everything above
+portable across M engines — and the reason `M_ENGINE=rsm` is a one-variable
+switch (see the engines guide at `/opt/guides/engines.md`).
 
 ### 3. `m` — the developer inner loop
 
@@ -321,6 +325,21 @@ m lib list                           # what libraries are installed
 
 No `--engine` or `--transport` flags are needed: the image bakes `M_ENGINE=ydb`
 and the driver resolves the local engine sitting beside you.
+
+### Switching engines (YottaDB ⇄ RSM)
+
+One variable selects the engine — for a whole container:
+
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 -v "$PWD":/work \
+  -e M_ENGINE=rsm rafaelrichards/m-devbox
+```
+
+or inside a running terminal: `export M_ENGINE=rsm` (and `=ydb` to switch
+back). Run Code and `m test` follow it. The full guide — what is identical,
+what differs per engine, and where the deeper documentation lives — is baked
+at **`/opt/guides/engines.md`**; RSM's measured capability boundary is at
+**`/opt/rsm/docs/what-works-on-rsm.md`**.
 
 ⚠️ **`m engine exec` reports the engine's *process* status, and YottaDB exits 0
 even when it reports an M error** (an unresolvable routine, for instance). So a

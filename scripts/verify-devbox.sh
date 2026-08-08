@@ -874,5 +874,19 @@ else
 '"  rsm: $(printf '%s' "$G29_R" | head -3)"
 fi
 
+# ── G30: the engine guides ship, and the STAGED one matches its source ──────
+# /opt/guides/engines.md is devbox-owned; /opt/rsm/docs/what-works-on-rsm.md
+# is staged from the m-rsm repo (single-sourcing) — same identity discipline
+# as G21's reading trees: a stale baked copy teaches a boundary nobody
+# measured, so drift reds instead of shipping.
+echo "== G30: engine guides baked + staged RSM reference matches its source =="
+G30_BAKED="$(run "$IMG" sh -c 'test -s /opt/guides/engines.md && sha256sum /opt/rsm/docs/what-works-on-rsm.md 2>/dev/null | cut -d" " -f1')"
+G30_SRC="$(sha256sum "$FORGE/m-rsm/docs/guides/what-works-on-rsm.md" | cut -d" " -f1)"
+if [ -n "$G30_BAKED" ] && [ "$G30_BAKED" = "$G30_SRC" ]; then
+  echo "  ✓ engines.md present; what-works-on-rsm.md == m-rsm's copy ($(printf %.12s "$G30_SRC")…)"
+else
+  fail "G30: engine guides — baked=$G30_BAKED src=$G30_SRC (missing guide, or the staged RSM page drifted from m-rsm)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc

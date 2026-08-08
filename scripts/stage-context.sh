@@ -198,6 +198,12 @@ fi
 cp -a "$rsm_src" "$CTX/rsm-src"
 echo "stage: rsm-src — pinned export $RSM_COMMIT"
 
+# ── engine guides: the devbox-owned engines guide + the RSM reference page
+#    STAGED from its owning repo (single-sourcing — fix RSM docs in m-rsm) ──
+mkdir -p "$CTX/guides"
+cp "$REPO/docs/guides/engines.md"                 "$CTX/guides/engines.md"
+cp "$FORGE/m-rsm/docs/guides/what-works-on-rsm.md" "$CTX/guides/what-works-on-rsm.md"
+
 # ── m-stdlib: the MSL unit — callout sources (builder stage) AND the library
 #    install unit (final-stage `m lib install`) live under one staged dir ─────
 # Builder stage consumes dist/callout-symbols.json + tools/*.xc + src/callouts/*.c;
@@ -356,7 +362,7 @@ EXPECTED=(
   Dockerfile entrypoint.sh code-server-launch.sh m-run.sh
   code-server-defaults-settings.json devbox.code-workspace
   ydbinstall.sh code-server.deb code-runner.vsix errorlens.vsix rainbow-csv.vsix
-  m m-ydb m-rsm rsm-src
+  m m-ydb m-rsm rsm-src guides
   m-stdlib f-stdlib msl-tests fsl-tests msl-lib fsl-lib
   fileman examples m-vscode licenses
   context.provenance
