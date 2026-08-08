@@ -53,4 +53,13 @@ exec code-server \
   --disable-update-check \
   --user-data-dir "$STATE/user-data" \
   --extensions-dir /opt/code-server/extensions \
-  "$WORKSPACE" /opt/docs/README.md
+  "$WORKSPACE"
+
+# ⚠️ NEVER add a second positional path here. 0.3.1 shipped
+# `code-server "$WORKSPACE" /opt/docs/README.md` to land the user on the docs,
+# and MEASURED (2026-08-08, /dev/tcp probe of the workbench bootstrap): a file
+# argument beside a workspace makes code-server DROP THE WORKSPACE — the page
+# stopped mentioning devbox.code-workspace at all, so /work, examples, MSL,
+# FSL and the docs folder all vanished from the Explorer. The start page is
+# opened declaratively instead, by `workbench.startupEditor` in the baked
+# settings, which cannot disturb what the window opens. Gate: G31.

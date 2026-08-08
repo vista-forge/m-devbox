@@ -11,6 +11,9 @@
 
   "security.workspace.trust.enabled": false,
 
+  "// startupEditor": "readme opens a workspace folder's README on first load — the docs folder carries one. This is how the start page opens WITHOUT a second CLI path, which would drop the workspace entirely (G31).",
+  "workbench.startupEditor": "readme",
+
   "extensions.autoCheckUpdates": false,
   "extensions.autoUpdate": false,
 

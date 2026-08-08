@@ -888,5 +888,40 @@ else
   fail "G30: engine guides — baked=$G30_BAKED src=$G30_SRC (missing guide, or the staged RSM page drifted from m-rsm)"
 fi
 
+# ── G31: the IDE actually OPENS THE WORKSPACE (the folders a user sees) ─────
+# 0.3.1 shipped an IDE with NO workspace: a second positional path
+# (`code-server <workspace> /opt/docs/README.md`) made code-server drop the
+# workspace, so /work, examples, MSL, FSL and docs all vanished from the
+# Explorer — and every existing gate passed, because G23/G24 check trust and
+# the extension set, never what the window opens. This asks the workbench
+# itself: fetch the bootstrap page code-server serves (bash /dev/tcp — the
+# image ships no curl by design) and require it to name the workspace.
+echo "== G31: the IDE opens the multi-root workspace (folders a user sees) =="
+G31_PROBE='
+set -u
+# Drive the REAL entry point — `devbox-code-server`, exactly as CMD does —
+# because the 0.3.1 defect lived in THAT script\047s arguments. A probe that
+# invokes code-server itself would have passed while the shipped IDE was
+# broken (caught while writing this gate, 2026-08-08).
+CODE_SERVER_PORT=9131 CODE_SERVER_STATE=/tmp/g31state devbox-code-server >/tmp/g31.log 2>&1 &
+for i in $(seq 1 90); do grep -qi "listening on" /tmp/g31.log && break; sleep 1; done
+exec 3<>/dev/tcp/127.0.0.1/9131 || { echo PROBE-NO-CONNECT; exit 1; }
+printf "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n" >&3
+page="$(timeout 25 cat <&3)"
+printf "workspace-refs=%s startup=%s folders=%s\n" \
+  "$(printf "%s" "$page" | grep -c "devbox.code-workspace")" \
+  "$(grep -c "startupEditor" /tmp/g31state/user-data/User/settings.json)" \
+  "$(grep -c "\"path\":" /opt/code-server/devbox.code-workspace)"
+'
+G31_OUT="$(run "$IMG" bash -c "$G31_PROBE" 2>&1 | tr -d "\r" | grep -E "^workspace-refs=|PROBE-NO-CONNECT" | tail -1)"
+G31_W="$(printf '%s' "$G31_OUT" | sed -n 's/.*workspace-refs=\([0-9]*\).*/\1/p')"
+G31_S="$(printf '%s' "$G31_OUT" | sed -n 's/.*startup=\([0-9]*\).*/\1/p')"
+G31_F="$(printf '%s' "$G31_OUT" | sed -n 's/.*folders=\([0-9]*\).*/\1/p')"
+if [ "${G31_W:-0}" -ge 1 ] && [ "${G31_S:-0}" -ge 1 ] && [ "${G31_F:-0}" -ge 5 ] 2>/dev/null; then
+  echo "  ✓ the served workbench names the workspace ($G31_W refs), it lists $G31_F folders, and the start page opens declaratively (startupEditor=readme)"
+else
+  fail "G31: the IDE would not open the workspace as configured — $G31_OUT"$'\n'"  (workspace-refs must be >=1: a second CLI path silently drops the workspace; folders must be >=5: /work + docs + examples + MSL + FSL)"
+fi
+
 if [ $rc -eq 0 ]; then echo; echo "verify-devbox: OK — all gates green ($IMG)"; fi
 exit $rc
