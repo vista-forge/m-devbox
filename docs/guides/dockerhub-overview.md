@@ -49,6 +49,10 @@ open http://127.0.0.1:8080
 
 You will now have a web-based M development environment with the directory you launched from mounted at /work.  
 
+The IDE opens on a **start-here page**, with a **`docs — START HERE`** folder in the file tree: the engines guide, the RSM capability boundary, and the standard-library references are all there, in the container, from the first second.
+
+**Prefer the other engine?** `docker run … -e M_ENGINE=rsm rafaelrichards/m-devbox` runs the same tools against Reference Standard M instead of YottaDB.
+
 
 
 ## The M developer stack, from the metal up
