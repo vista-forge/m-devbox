@@ -6,6 +6,7 @@
   // image build, so edit them there, not here.
   "folders": [
     { "path": "/work", "name": "work — your code" },
+    { "path": "/opt/docs", "name": "docs — START HERE" },
     { "path": "/opt/examples", "name": "examples (baked in image)" },
     { "path": "/opt/msl", "name": "MSL — M Standard Library (baked, read-only)" },
     { "path": "/opt/fsl", "name": "FSL — FileMan Standard Library (baked, read-only)" }

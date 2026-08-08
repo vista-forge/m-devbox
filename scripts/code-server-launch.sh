@@ -53,4 +53,4 @@ exec code-server \
   --disable-update-check \
   --user-data-dir "$STATE/user-data" \
   --extensions-dir /opt/code-server/extensions \
-  "$WORKSPACE"
+  "$WORKSPACE" /opt/docs/README.md

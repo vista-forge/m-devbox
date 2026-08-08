@@ -183,6 +183,12 @@ ENV RSM_DBFILE=/opt/rsm/rsm.dat \
     M_RSM_TRANSPORT=local
 COPY guides/engines.md /opt/guides/engines.md
 COPY guides/what-works-on-rsm.md /opt/rsm/docs/what-works-on-rsm.md
+# /opt/docs — the documentation hub the IDE opens on: the start-here page as
+# its README plus links to every guide, so a first-time user sees ALL the
+# documentation in the file tree the moment the workspace loads.
+COPY guides/start-here.md /opt/docs/README.md
+RUN ln -s /opt/guides/engines.md /opt/docs/engines.md && \
+    ln -s /opt/rsm/docs/what-works-on-rsm.md /opt/docs/what-works-on-rsm.md
 RUN set -e; cd /opt/rsm; \
     rsm -v RSM -b 64 -s 1024; \
     rsm -j 4; \
@@ -361,7 +367,7 @@ RUN set -eu; \
     useradd -m -u 1000 -g 0 -s /bin/bash devbox; \
     getent passwd devbox >/dev/null; \
     chgrp 0 /etc/passwd; chmod g=u /etc/passwd; \
-    for d in /data /opt/lib /opt/msl /opt/fsl /opt/examples /opt/stdlib /opt/rsm /opt/guides /work /home/devbox; do \
+    for d in /data /opt/lib /opt/msl /opt/fsl /opt/examples /opt/stdlib /opt/rsm /opt/guides /opt/docs /work /home/devbox; do \
       chgrp -R 0 "$d"; chmod -R g=u "$d"; \
     done
 COPY entrypoint.sh /usr/local/bin/devbox-entrypoint

@@ -202,6 +202,7 @@ echo "stage: rsm-src — pinned export $RSM_COMMIT"
 #    STAGED from its owning repo (single-sourcing — fix RSM docs in m-rsm) ──
 mkdir -p "$CTX/guides"
 cp "$REPO/docs/guides/engines.md"                 "$CTX/guides/engines.md"
+cp "$REPO/docs/guides/start-here.md"              "$CTX/guides/start-here.md"
 cp "$FORGE/m-rsm/docs/guides/what-works-on-rsm.md" "$CTX/guides/what-works-on-rsm.md"
 
 # ── m-stdlib: the MSL unit — callout sources (builder stage) AND the library
