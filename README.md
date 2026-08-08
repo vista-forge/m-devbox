@@ -406,21 +406,20 @@ make load      # offline: restore the image from the org archive
 `make load` restores it from `~/data/vista-forge/images`. The archive, not a
 rebuild, is the recovery path.
 
-**Both architectures of a published release are archived**, so neither depends
-on the registry to come back:
+**The amd64 image is archived locally**, so it comes back without the registry:
 
 | Archive | Managed by |
 |---|---|
 | `m-devbox_0.3.2-local.tar.zst` (amd64) | the org archive script — change-detected, refreshed by `make archive` |
-| `m-devbox_0.3.2-local-arm64.tar.zst` | **manually**, saved from the remote build host |
 
-⚠️ The arm64 archive is a **point-in-time copy**. The org script saves images
-from the *local* daemon, and the arm64 image lives on the Apple Silicon host, so
-nothing re-saves it automatically — rebuild arm64 and this archive silently goes
-stale. Its `.id` companion records the image ID it was cut from; compare against
-`docker image inspect` on the build host before trusting it. A stale archive
-that looks current is worse than no archive, which is why the limitation is
-written down rather than assumed.
+**arm64 is deliberately NOT archived here.** The Apple Silicon host builds that
+image and nothing else; shipping ~500 MB back over a relayed link cost a
+release's worth of failed transfers and bought only an offline restore of an
+image already in a registry. `publish` pushes arm64 from the build host's own
+daemon straight to Docker Hub, so **its recovery path is `docker pull`** — and
+that is a decision, not a gap. (It also removes the old trap: a hand-copied
+arm64 archive went stale the moment the image was rebuilt, and a stale archive
+that looks current is worse than none.)
 
 **Nothing is vendored in this repo.** Every binary, routine and document is
 single-sourced in its owning repository and assembled into an ephemeral build

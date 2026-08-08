@@ -60,18 +60,18 @@ The bundle refuses unless every repo is committed and matches what the image was
 staged from. If it refuses, the release is not reproducible — fix that rather
 than passing `--allow-dirty`, which stamps the bundle NON-CORRESPONDING.
 
-## 5. Archive both architectures
+## 5. Archive — amd64 only, by policy
 
 ```bash
-make archive                                  # amd64, via the org script
-DOCKER_HOST="unix://$PWD/.mac-docker.sock" \
-  docker save m-devbox:0.2.0-local-arm64 \
-  | zstd -T0 -3 -q -o ~/data/vista-forge/images/m-devbox_0.2.0-local-arm64.tar.zst
+make archive                                  # amd64, via the org script (local daemon, no network)
 ```
 
-The arm64 save is manual: the org archive script only saves images on the *local*
-daemon. Write an `.id` file beside it recording the image ID, or the archive
-silently goes stale on the next arm64 build.
+**There is deliberately NO arm64 archive.** Operator directive 2026-08-08
+([[mac-is-a-build-host-only]]): the Mac builds the Apple Silicon image and
+nothing else — never ship images or archives back over Tailscale. `publish`
+already pushes the arm64 image from the Mac's own daemon straight to the
+registry, so **the arm64 recovery path is `docker pull`**, and the registry is
+its durable copy. Do not "restore" this step; its absence is a decision.
 
 ## 6. Update the Docker Hub page
 
