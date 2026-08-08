@@ -126,7 +126,7 @@ if [ -f "$PROV" ]; then
     echo "  Re-run 'make build' so the image is staged from committed, pushed code, then bundle." >&2
     exit 4
   fi
-  if [ "${#moved[@]:-0}" -gt 0 ]; then
+  if [ "${#moved[@]}" -gt 0 ]; then
     echo "source-bundle: repos have moved since the build — the bundle follows the IMAGE, not HEAD:"
     printf '    %s\n' "${moved[@]}"
   fi
