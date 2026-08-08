@@ -332,7 +332,11 @@ cp "${vsix_src[0]}" "$CTX/m-vscode/m-vscode.vsix"
 # into the image) — the build's own record, read by hand when a result surprises.
 {
   printf 'staged-from:\n'
-  for r in m-cli m-ydb m-stdlib f-stdlib fileman m-vscode m-devbox; do
+  # EVERY repo whose code reaches the image must be listed: the bundle now
+  # archives the commit recorded here (source-bundle.sh), so an omitted repo
+  # falls back to HEAD and its row reads HEAD-no-provenance-row — correct only
+  # by luck. m-rsm was exactly that omission, caught cutting 0.3.1.
+  for r in m-cli m-ydb m-rsm m-stdlib f-stdlib fileman m-vscode m-devbox; do
     d="$FORGE/$r"; [ -d "$d/.git" ] || continue
     printf '  %-14s %s%s\n' "$r" \
       "$(git -C "$d" rev-parse --short HEAD 2>/dev/null || echo '?')" \
